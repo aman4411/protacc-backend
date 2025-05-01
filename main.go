@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aman4411/protacc-backend/internal/db"
+	"github.com/aman4411/protacc-backend/db"
 	"log"
 	"os"
 	"os/signal"
