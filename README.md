@@ -88,17 +88,22 @@ Create a `.env` file in the root directory and add your environment variables. E
     brew install golang-migrate
 ```
 
-### 5. Run migrations
+### 5. Create migrations
+```bash
+    migrate create -ext sql -dir db/migrations <name>
+```
+
+### 6. Run migrations
 ```bash
     migrate -path db/migrations -database "your_postgresql_connection_string" up
 ```
 
-### 6. Run the application
+### 7. Run the application
 ```bash
     go run main.go
 ```
 
-### 7. Test the API
+### 8. Test the API
 ```bash
     curl http://localhost:8080/ping
     # Expected response: "pong"
