@@ -7,8 +7,13 @@ import (
 
 // SetupRoutes configures all the routes for the application
 func SetupRoutes(app *fiber.App, f *Factories) {
-	// Setup CORS
-	app.Use(cors.New())
+	// Setup CORS with specific configuration
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "https://protacc.netlify.app, http://localhost:3000",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
+		AllowCredentials: true,
+	}))
 
 	// API routes group
 	api := app.Group("/api/v1")
