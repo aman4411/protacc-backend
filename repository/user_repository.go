@@ -118,3 +118,116 @@ func (r *UserRepository) GetUserFirstName(ctx context.Context, userID string) (s
 func (r *UserRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.pool.Begin(ctx)
 }
+
+func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	utils.LogInfo("Fetching user by email", "email", email)
+
+	var user models.User
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, first_name, last_name, email, phone, password_hash, is_email_verified, role, created_at, updated_at
+		FROM users
+		WHERE email = $1
+	`, email).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Phone,
+		&user.PasswordHash,
+		&user.IsEmailVerified,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		utils.LogError("User not found", "email", email)
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		utils.LogError("Error fetching user", "error", err.Error(), "email", email)
+		return nil, fmt.Errorf("error fetching user: %v", err)
+	}
+
+	utils.LogInfo("User fetched successfully", "userId", user.ID, "email", user.Email)
+	return &user, nil
+}
+
+func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	utils.LogInfo("Fetching user by ID", "userId", userID)
+
+	var user models.User
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, first_name, last_name, email, phone, password_hash, is_email_verified, role, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Phone,
+		&user.PasswordHash,
+		&user.IsEmailVerified,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		utils.LogError("User not found", "userId", userID)
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		utils.LogError("Error fetching user", "error", err.Error(), "userId", userID)
+		return nil, fmt.Errorf("error fetching user: %v", err)
+	}
+
+	utils.LogInfo("User fetched successfully", "userId", user.ID, "email", user.Email)
+	return &user, nil
+}
+
+func (r *UserRepository) GetUsers(ctx context.Context) ([]*models.User, error) {
+	utils.LogInfo("Fetching all users")
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, first_name, last_name, email, phone, password_hash, is_email_verified, role, created_at, updated_at
+		FROM users
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		utils.LogError("Error fetching users", "error", err.Error())
+		return nil, fmt.Errorf("error fetching users: %v", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(
+			&user.ID,
+			&user.FirstName,
+			&user.LastName,
+			&user.Email,
+			&user.Phone,
+			&user.PasswordHash,
+			&user.IsEmailVerified,
+			&user.Role,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			utils.LogError("Error scanning user row", "error", err.Error())
+			return nil, fmt.Errorf("error scanning user row: %v", err)
+		}
+		users = append(users, &user)
+	}
+
+	if err := rows.Err(); err != nil {
+		utils.LogError("Error iterating user rows", "error", err.Error())
+		return nil, fmt.Errorf("error iterating user rows: %v", err)
+	}
+
+	utils.LogInfo("Users fetched successfully", "count", len(users))
+	return users, nil
+}

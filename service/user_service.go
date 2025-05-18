@@ -198,3 +198,84 @@ func generateOTP() string {
 	}
 	return string(b)
 }
+
+func (s *UserService) AuthenticateUser(ctx context.Context, req *models.LoginRequest) (*models.UserResponse, error) {
+	utils.LogInfo("Starting user authentication", "email", req.Email)
+
+	// Get user by email
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		utils.LogError("Failed to get user", "error", err.Error(), "email", req.Email)
+		return nil, fmt.Errorf("invalid email or password")
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	if err != nil {
+		utils.LogError("Invalid password", "email", req.Email)
+		return nil, fmt.Errorf("invalid email or password")
+	}
+
+	utils.LogInfo("User authenticated successfully", "userId", user.ID, "email", user.Email)
+
+	return &models.UserResponse{
+		ID:              user.ID,
+		FirstName:       user.FirstName,
+		LastName:        user.LastName,
+		Email:           user.Email,
+		Phone:           user.Phone,
+		IsEmailVerified: user.IsEmailVerified,
+		Role:            user.Role,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}, nil
+}
+
+func (s *UserService) GetUserByID(ctx context.Context, userID string) (*models.UserResponse, error) {
+	utils.LogInfo("Fetching user by ID", "userId", userID)
+
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		utils.LogError("Failed to get user", "error", err.Error(), "userId", userID)
+		return nil, err
+	}
+
+	return &models.UserResponse{
+		ID:              user.ID,
+		FirstName:       user.FirstName,
+		LastName:        user.LastName,
+		Email:           user.Email,
+		Phone:           user.Phone,
+		IsEmailVerified: user.IsEmailVerified,
+		Role:            user.Role,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}, nil
+}
+
+func (s *UserService) GetUsers(ctx context.Context) ([]models.UserResponse, error) {
+	utils.LogInfo("Fetching all users")
+
+	users, err := s.repo.GetUsers(ctx)
+	if err != nil {
+		utils.LogError("Failed to get users", "error", err.Error())
+		return nil, err
+	}
+
+	var userResponses []models.UserResponse
+	for _, user := range users {
+		userResponses = append(userResponses, models.UserResponse{
+			ID:              user.ID,
+			FirstName:       user.FirstName,
+			LastName:        user.LastName,
+			Email:           user.Email,
+			Phone:           user.Phone,
+			IsEmailVerified: user.IsEmailVerified,
+			Role:            user.Role,
+			CreatedAt:       user.CreatedAt,
+			UpdatedAt:       user.UpdatedAt,
+		})
+	}
+
+	return userResponses, nil
+}

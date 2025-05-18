@@ -26,6 +26,12 @@ type UserRequest struct {
 	ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=Password"`
 }
 
+// LoginRequest represents the login request data
+type LoginRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
 // UserResponse represents the user data sent back to client
 type UserResponse struct {
 	ID              string    `json:"id"`
@@ -37,4 +43,10 @@ type UserResponse struct {
 	Role            string    `json:"role"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+// AuthResponse represents the authentication response with JWT token
+type AuthResponse struct {
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
 }

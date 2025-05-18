@@ -7,12 +7,15 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/aman4411/protacc-backend/utils"
 )
 
 type MailService struct {
 	apiKey    string
 	fromEmail string
 	client    *http.Client
+	env       string
 }
 
 type resendEmail struct {
@@ -31,8 +34,13 @@ type resendError struct {
 func NewMailService() *MailService {
 	apiKey := os.Getenv("RESEND_API_KEY")
 	fromEmail := os.Getenv("FROM_EMAIL")
+	env := os.Getenv("ENVIRONMENT")
 
-	if apiKey == "" {
+	if env == "" {
+		env = "dev" // Default to development if not set
+	}
+
+	if apiKey == "" && env != "dev" {
 		fmt.Println("WARNING: RESEND_API_KEY is not set")
 	}
 	if fromEmail == "" {
@@ -45,10 +53,20 @@ func NewMailService() *MailService {
 		apiKey:    apiKey,
 		fromEmail: fromEmail,
 		client:    &http.Client{},
+		env:       env,
 	}
 }
 
 func (s *MailService) sendEmail(to, subject, html string) error {
+	// In development, just log the email instead of sending it
+	if s.env == "dev" {
+		utils.LogInfo("Email not sent (development mode)",
+			"to", to,
+			"subject", subject,
+			"content", html)
+		return nil
+	}
+
 	if s.apiKey == "" {
 		return fmt.Errorf("RESEND_API_KEY is not set")
 	}
