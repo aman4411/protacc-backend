@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aman4411/protacc-backend/models"
+	"github.com/aman4411/protacc-backend/utils"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -42,14 +43,20 @@ func (r *UserRepository) CreateUser(ctx context.Context, tx pgx.Tx, user *models
 }
 
 func (r *UserRepository) CreateEmailVerification(ctx context.Context, tx pgx.Tx, userID, email, otp string, expiresAt time.Time) error {
+	utils.LogInfo("Attempting to create email verification record", "userId", userID, "email", email)
+
+	now := time.Now()
 	_, err := tx.Exec(ctx, `
 		INSERT INTO email_verifications (user_id, email, otp, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5)
-	`, userID, email, otp, expiresAt, time.Now())
+	`, userID, email, otp, expiresAt, now)
 
 	if err != nil {
+		utils.LogError("Failed to create email verification record", "error", err.Error(), "userId", userID, "email", email)
 		return fmt.Errorf("error storing verification details: %v", err)
 	}
+
+	utils.LogInfo("Email verification record created in database", "userId", userID, "email", email, "expiresAt", expiresAt)
 	return nil
 }
 

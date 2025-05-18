@@ -8,6 +8,7 @@ import (
 
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/repository"
+	"github.com/aman4411/protacc-backend/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -41,27 +42,39 @@ func ValidatePassword(password, confirmPassword string) error {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, req *models.UserRequest) (*models.UserResponse, error) {
+	utils.LogInfo("Starting user creation process", "email", req.Email)
+
 	// Check if user exists
 	exists, err := s.repo.CheckUserExists(ctx, req.Email)
 	if err != nil {
+		utils.LogError("Error checking if user exists", "error", err.Error(), "email", req.Email)
 		return nil, err
 	}
 	if exists {
+		utils.LogError("User already exists", "email", req.Email)
 		return nil, fmt.Errorf("user with email %s already exists", req.Email)
 	}
+
+	utils.LogInfo("User existence check passed", "email", req.Email)
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
+		utils.LogError("Error hashing password", "error", err.Error(), "email", req.Email)
 		return nil, fmt.Errorf("error hashing password: %v", err)
 	}
+
+	utils.LogInfo("Password hashed successfully", "email", req.Email)
 
 	// Begin transaction
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
+		utils.LogError("Error starting transaction", "error", err.Error(), "email", req.Email)
 		return nil, fmt.Errorf("error starting transaction: %v", err)
 	}
 	defer tx.Rollback(ctx)
+
+	utils.LogInfo("Database transaction started", "email", req.Email)
 
 	// Create user
 	now := time.Now()
@@ -78,26 +91,42 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.UserRequest) (
 	}
 
 	if err := s.repo.CreateUser(ctx, tx, user); err != nil {
+		utils.LogError("Error creating user in database", "error", err.Error(), "email", req.Email)
 		return nil, err
 	}
+
+	utils.LogInfo("User created in database", "userId", user.ID, "email", user.Email)
 
 	// Generate and store OTP
+	utils.LogInfo("Generating OTP for email verification", "email", req.Email)
 	otp := generateOTP()
+	utils.LogInfo("OTP generated successfully", "email", req.Email, "otp", otp)
+
 	expiresAt := now.Add(15 * time.Minute)
+	utils.LogInfo("Creating email verification record", "email", req.Email, "userId", user.ID, "expiresAt", expiresAt)
 
 	if err := s.repo.CreateEmailVerification(ctx, tx, user.ID, user.Email, otp, expiresAt); err != nil {
-		return nil, err
+		utils.LogError("Error creating email verification", "error", err.Error(), "email", req.Email, "userId", user.ID)
+		return nil, fmt.Errorf("failed to create email verification: %v", err)
 	}
+
+	utils.LogInfo("Email verification record created successfully", "email", req.Email, "userId", user.ID)
 
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
+		utils.LogError("Error committing transaction", "error", err.Error(), "email", req.Email)
 		return nil, fmt.Errorf("error committing transaction: %v", err)
 	}
 
+	utils.LogInfo("Database transaction committed successfully", "email", req.Email)
+
 	// Send verification email
 	if err := s.mail.SendVerificationEmail(user.Email, user.FirstName, otp); err != nil {
+		utils.LogError("Error sending verification email", "error", err.Error(), "email", req.Email)
 		return nil, fmt.Errorf("error sending verification email: %v", err)
 	}
+
+	utils.LogInfo("Verification email sent successfully", "email", req.Email)
 
 	return &models.UserResponse{
 		ID:              user.ID,
