@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     CONSTRAINT unique_active_verification UNIQUE (email, otp, expires_at)
 );
 
-CREATE INDEX idx_email_verifications_email_otp ON email_verifications(email, otp);
-CREATE INDEX idx_email_verifications_user_id ON email_verifications(user_id); 
+CREATE INDEX IF NOT EXISTS idx_email_verifications_email_otp ON email_verifications(email, otp);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id ON email_verifications(user_id);

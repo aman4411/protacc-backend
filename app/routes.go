@@ -30,11 +30,39 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	user := api.Group("/user", middleware.Protected())
 	user.Get("/profile", f.UserHandler.GetProfile)
 
+	// Service routes
+	services := api.Group("/services")
+	services.Get("/", f.ServiceHandler.GetServices)
+	services.Get("/categories", f.ServiceHandler.GetServiceCategories)
+	services.Get("/slug/:slug", f.ServiceHandler.GetServiceBySlug)
+	services.Get("/:id", f.ServiceHandler.GetServiceByID)
+
+	// Protected service routes
+	protectedServices := api.Group("/services", middleware.Protected())
+	protectedServices.Post("/categories", f.ServiceHandler.CreateServiceCategory)
+	protectedServices.Post("/", f.ServiceHandler.CreateService)
+
+	// Cart routes
+	cart := api.Group("/cart", middleware.Protected())
+	cart.Get("/", f.ServiceHandler.GetCartItems)
+	cart.Post("/:serviceId", f.ServiceHandler.AddToCart)
+	cart.Delete("/:serviceId", f.ServiceHandler.RemoveFromCart)
+
+	// Order routes
+	orders := api.Group("/orders", middleware.Protected())
+	orders.Get("/", f.ServiceHandler.GetOrders)
+	orders.Post("/:serviceId", f.ServiceHandler.CreateOrder)
+	orders.Get("/:orderId/history", f.ServiceHandler.GetOrderStatusHistory)
+
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
 	admin.Get("/users", f.UserHandler.GetUsers)
+	admin.Put("/orders/:orderId/status", f.ServiceHandler.UpdateOrderStatus)
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
 	})
+
+	// Static files
+	app.Static("/images", "./static/images")
 }

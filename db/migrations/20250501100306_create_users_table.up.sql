@@ -1,4 +1,8 @@
-CREATE TYPE user_role AS ENUM ('user', 'staff', 'admin');
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM ('user', 'staff', 'admin');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -13,4 +17,4 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX idx_users_email ON users(email); 
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
