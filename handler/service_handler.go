@@ -50,8 +50,20 @@ func (h *ServiceHandler) CreateService(c *fiber.Ctx) error {
 
 func (h *ServiceHandler) GetServices(c *fiber.Ctx) error {
 	categorySlug := c.Query("category")
+	categoryIDStr := c.Query("category_id")
 
-	services, err := h.svc.GetServicesByCategory(c.Context(), categorySlug)
+	var categoryID *int
+	if categoryIDStr != "" {
+		id, err := strconv.Atoi(categoryIDStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid category_id",
+			})
+		}
+		categoryID = &id
+	}
+
+	services, err := h.svc.GetServices(c.Context(), categoryID, categorySlug)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -95,6 +107,24 @@ func (h *ServiceHandler) GetServiceBySlug(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(service)
+}
+
+func (h *ServiceHandler) SearchServices(c *fiber.Ctx) error {
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Search query is required",
+		})
+	}
+
+	services, err := h.svc.SearchServices(c.Context(), query)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(services)
 }
 
 // Cart Handlers

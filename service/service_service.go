@@ -23,10 +23,12 @@ func (s *ServiceService) GetAllCategories(ctx context.Context) ([]models.Service
 	return s.repo.GetServiceCategories(ctx)
 }
 
+func (s *ServiceService) GetServices(ctx context.Context, categoryID *int, categorySlug string) ([]models.Service, error) {
+	return s.repo.GetServices(ctx, categoryID, categorySlug)
+}
+
 func (s *ServiceService) GetServicesByCategory(ctx context.Context, categorySlug string) ([]models.Service, error) {
-	// For now, get all services and filter by category if needed
-	// This could be optimized with a proper repository method later
-	return s.repo.GetServices(ctx, nil)
+	return s.repo.GetServices(ctx, nil, categorySlug)
 }
 
 func (s *ServiceService) GetServiceBySlug(ctx context.Context, serviceSlug string) (*models.Service, error) {
@@ -35,6 +37,13 @@ func (s *ServiceService) GetServiceBySlug(ctx context.Context, serviceSlug strin
 
 func (s *ServiceService) GetServiceByID(ctx context.Context, serviceID int) (*models.Service, error) {
 	return s.repo.GetServiceByID(ctx, serviceID)
+}
+
+func (s *ServiceService) SearchServices(ctx context.Context, query string) ([]models.Service, error) {
+	if query == "" {
+		return []models.Service{}, nil
+	}
+	return s.repo.SearchServices(ctx, query)
 }
 
 func (s *ServiceService) AddToCart(ctx context.Context, userID string, serviceID int) error {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -68,6 +69,79 @@ func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.
 	return categories, nil
 }
 
+// SearchServices searches for services by name, description, or category
+func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([]models.Service, error) {
+	searchQuery := `
+		SELECT 
+			s.id, s.name, s.slug, s.description, s.price, s.estimated_delivery_days,
+			s.features, s.requirements, s.category_id, s.status, s.created_at, s.updated_at,
+			sc.name as category_name, sc.slug as category_slug
+		FROM services s
+		LEFT JOIN service_categories sc ON s.category_id = sc.id
+		WHERE s.status = 'active' 
+		AND (
+			LOWER(s.name) LIKE LOWER($1) OR 
+			LOWER(s.description) LIKE LOWER($1) OR
+			LOWER(sc.name) LIKE LOWER($1)
+		)
+		ORDER BY 
+			CASE 
+				WHEN LOWER(s.name) LIKE LOWER($2) THEN 1
+				WHEN LOWER(s.name) LIKE LOWER($1) THEN 2
+				WHEN LOWER(s.description) LIKE LOWER($1) THEN 3
+				ELSE 4
+			END,
+			s.name`
+
+	searchTerm := "%" + query + "%"
+	exactTerm := query + "%"
+
+	rows, err := r.db.Query(ctx, searchQuery, searchTerm, exactTerm)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var services []models.Service
+	for rows.Next() {
+		var service models.Service
+		var categoryName, categorySlug sql.NullString
+
+		err := rows.Scan(
+			&service.ID,
+			&service.Name,
+			&service.Slug,
+			&service.Description,
+			&service.Price,
+			&service.EstimatedDeliveryDays,
+			&service.Features,
+			&service.Requirements,
+			&service.CategoryID,
+			&service.Status,
+			&service.CreatedAt,
+			&service.UpdatedAt,
+			&categoryName,
+			&categorySlug,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Populate category information if available
+		if categoryName.Valid && categorySlug.Valid {
+			service.Category = &models.ServiceCategory{
+				ID:   service.CategoryID,
+				Name: categoryName.String,
+				Slug: categorySlug.String,
+			}
+		}
+
+		services = append(services, service)
+	}
+
+	return services, nil
+}
+
 // Service Methods
 func (r *ServiceRepository) CreateService(ctx context.Context, service *models.Service) error {
 	query := `
@@ -95,7 +169,7 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 	).Scan(&service.ID, &service.CreatedAt, &service.UpdatedAt)
 }
 
-func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int) ([]models.Service, error) {
+func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, categorySlug string) ([]models.Service, error) {
 	query := `
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.price,
@@ -106,9 +180,10 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int) ([
 		JOIN service_categories c ON s.category_id = c.id
 		WHERE s.status = 'active'
 		AND ($1::int IS NULL OR s.category_id = $1)
+		AND ($2::text = '' OR c.slug = $2)
 		ORDER BY s.name`
 
-	rows, err := r.db.Query(ctx, query, categoryID)
+	rows, err := r.db.Query(ctx, query, categoryID, categorySlug)
 	if err != nil {
 		return nil, err
 	}

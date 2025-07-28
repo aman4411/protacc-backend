@@ -34,6 +34,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	services := api.Group("/services")
 	services.Get("/", f.ServiceHandler.GetServices)
 	services.Get("/categories", f.ServiceHandler.GetServiceCategories)
+	services.Get("/search", f.ServiceHandler.SearchServices)
 	services.Get("/slug/:slug", f.ServiceHandler.GetServiceBySlug)
 	services.Get("/:id", f.ServiceHandler.GetServiceByID)
 
