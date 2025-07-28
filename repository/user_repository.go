@@ -231,3 +231,109 @@ func (r *UserRepository) GetUsers(ctx context.Context) ([]*models.User, error) {
 	utils.LogInfo("Users fetched successfully", "count", len(users))
 	return users, nil
 }
+
+// GetUsersWithFilters returns filtered users with pagination
+func (r *UserRepository) GetUsersWithFilters(ctx context.Context, page, limit int, search, role string, emailVerified *bool) ([]models.User, int, error) {
+	offset := (page - 1) * limit
+
+	// Build dynamic query
+	baseQuery := `
+		FROM users 
+		WHERE 1=1`
+
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	selectQuery := `
+		SELECT id, first_name, last_name, email, role, is_email_verified, created_at, updated_at ` + baseQuery
+
+	args := []interface{}{}
+	argIndex := 1
+
+	// Add search filter
+	if search != "" {
+		baseQuery += fmt.Sprintf(" AND (LOWER(first_name) LIKE LOWER($%d) OR LOWER(last_name) LIKE LOWER($%d) OR LOWER(email) LIKE LOWER($%d))", argIndex, argIndex, argIndex)
+		searchTerm := "%" + search + "%"
+		args = append(args, searchTerm)
+		argIndex++
+	}
+
+	// Add role filter
+	if role != "" {
+		baseQuery += fmt.Sprintf(" AND role = $%d", argIndex)
+		args = append(args, role)
+		argIndex++
+	}
+
+	// Add email verified filter
+	if emailVerified != nil {
+		baseQuery += fmt.Sprintf(" AND is_email_verified = $%d", argIndex)
+		args = append(args, *emailVerified)
+		argIndex++
+	}
+
+	// Update queries with filters
+	countQuery = "SELECT COUNT(*) " + baseQuery
+	selectQuery = `
+		SELECT id, first_name, last_name, email, role, is_email_verified, created_at, updated_at ` + baseQuery +
+		fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+
+	args = append(args, limit, offset)
+
+	// Get total count
+	var total int
+	err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total)
+	if err != nil {
+		utils.LogError("Failed to get user count", "error", err.Error())
+		return nil, 0, err
+	}
+
+	// Get users
+	rows, err := r.pool.Query(ctx, selectQuery, args...)
+	if err != nil {
+		utils.LogError("Failed to query users with filters", "error", err.Error())
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(
+			&user.ID,
+			&user.FirstName,
+			&user.LastName,
+			&user.Email,
+			&user.Role,
+			&user.IsEmailVerified,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			utils.LogError("Failed to scan user row", "error", err.Error())
+			return nil, 0, err
+		}
+		users = append(users, user)
+	}
+
+	utils.LogInfo("Filtered users fetched successfully", "count", len(users), "total", total)
+	return users, total, nil
+}
+
+// UpdateUserRole updates a user's role
+func (r *UserRepository) UpdateUserRole(ctx context.Context, userID, role string) error {
+	query := `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`
+
+	result, err := r.pool.Exec(ctx, query, role, userID)
+	if err != nil {
+		utils.LogError("Failed to update user role", "error", err.Error(), "userID", userID)
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		utils.LogError("User not found", "userID", userID)
+		return fmt.Errorf("user not found")
+	}
+
+	utils.LogInfo("User role updated successfully", "userID", userID, "newRole", role)
+	return nil
+}

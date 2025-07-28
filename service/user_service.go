@@ -279,3 +279,32 @@ func (s *UserService) GetUsers(ctx context.Context) ([]models.UserResponse, erro
 
 	return userResponses, nil
 }
+
+// GetUsersWithFilters returns filtered users with pagination
+func (s *UserService) GetUsersWithFilters(ctx context.Context, page, limit int, search, role string, emailVerified *bool) ([]models.UserResponse, int, error) {
+	users, total, err := s.repo.GetUsersWithFilters(ctx, page, limit, search, role, emailVerified)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	userResponses := make([]models.UserResponse, len(users))
+	for i, user := range users {
+		userResponses[i] = models.UserResponse{
+			ID:              user.ID,
+			FirstName:       user.FirstName,
+			LastName:        user.LastName,
+			Email:           user.Email,
+			Role:            user.Role,
+			IsEmailVerified: user.IsEmailVerified,
+			CreatedAt:       user.CreatedAt,
+			UpdatedAt:       user.UpdatedAt,
+		}
+	}
+
+	return userResponses, total, nil
+}
+
+// UpdateUserRole updates a user's role
+func (s *UserService) UpdateUserRole(ctx context.Context, userID, role string) error {
+	return s.repo.UpdateUserRole(ctx, userID, role)
+}

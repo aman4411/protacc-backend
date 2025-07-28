@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/service"
 	"github.com/aman4411/protacc-backend/utils"
@@ -158,13 +160,91 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
-// GetUsers returns all users (admin only)
+// GetUsers returns all users with filtering and pagination (admin only)
 func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
-	users, err := h.userService.GetUsers(c.Context())
+	// Parse query parameters
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	search := c.Query("search", "")
+	role := c.Query("role", "")
+	emailVerified := c.Query("email_verified", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	var emailVerifiedFilter *bool
+	if emailVerified == "true" {
+		verified := true
+		emailVerifiedFilter = &verified
+	} else if emailVerified == "false" {
+		verified := false
+		emailVerifiedFilter = &verified
+	}
+
+	users, total, err := h.userService.GetUsersWithFilters(c.Context(), page, limit, search, role, emailVerifiedFilter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
-	return c.JSON(users)
+
+	return c.JSON(fiber.Map{
+		"users": users,
+		"pagination": fiber.Map{
+			"current_page": page,
+			"per_page":     limit,
+			"total":        total,
+			"total_pages":  (total + limit - 1) / limit,
+		},
+	})
+}
+
+// UpdateUserRole updates a user's role (admin only)
+func (h *UserHandler) UpdateUserRole(c *fiber.Ctx) error {
+	userID := c.Params("userId")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID is required",
+		})
+	}
+
+	var req struct {
+		Role string `json:"role" validate:"required,oneof=admin user"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Validation failed",
+			"details": err.Error(),
+		})
+	}
+
+	// Prevent changing own role
+	currentUserID := c.Locals("userId").(string)
+	if currentUserID == userID {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot change your own role",
+		})
+	}
+
+	err := h.userService.UpdateUserRole(c.Context(), userID, req.Role)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "User role updated successfully",
+	})
 }

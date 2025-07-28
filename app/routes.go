@@ -59,6 +59,8 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
 	admin.Get("/users", f.UserHandler.GetUsers)
+	admin.Put("/users/:userId/role", f.UserHandler.UpdateUserRole)
+	admin.Get("/orders", f.ServiceHandler.GetOrders)
 	admin.Put("/orders/:orderId/status", f.ServiceHandler.UpdateOrderStatus)
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
