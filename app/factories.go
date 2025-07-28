@@ -9,10 +9,11 @@ import (
 
 // Factories holds all the initialized dependencies
 type Factories struct {
-	UserHandler    *handler.UserHandler
-	ServiceHandler *handler.ServiceHandler
-	CartHandler    *handler.CartHandler
-	OrderHandler   *handler.OrderHandler
+	UserHandler     *handler.UserHandler
+	ServiceHandler  *handler.ServiceHandler
+	CartHandler     *handler.CartHandler
+	OrderHandler    *handler.OrderHandler
+	SettingsHandler *handler.SettingsHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -25,6 +26,7 @@ func NewFactories() (*Factories, error) {
 	serviceRepo := repository.NewServiceRepository(db.Pool)
 	cartRepo := repository.NewCartRepository(db.Pool)
 	orderRepo := repository.NewOrderRepository(db.Pool)
+	settingsRepo := repository.NewSettingsRepository(db.Pool)
 
 	// Initialize services
 	mailService := service.NewMailService()
@@ -32,17 +34,20 @@ func NewFactories() (*Factories, error) {
 	serviceService := service.NewServiceService(serviceRepo)
 	cartService := service.NewCartService(cartRepo)
 	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo)
+	settingsService := service.NewSettingsService(settingsRepo)
 
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService)
 	serviceHandler := handler.NewServiceHandler(serviceService)
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
+	settingsHandler := handler.NewSettingsHandler(settingsService)
 
 	return &Factories{
-		UserHandler:    userHandler,
-		ServiceHandler: serviceHandler,
-		CartHandler:    cartHandler,
-		OrderHandler:   orderHandler,
+		UserHandler:     userHandler,
+		ServiceHandler:  serviceHandler,
+		CartHandler:     cartHandler,
+		OrderHandler:    orderHandler,
+		SettingsHandler: settingsHandler,
 	}, nil
 }

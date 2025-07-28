@@ -28,7 +28,7 @@ func (r *CartRepository) AddToCart(ctx context.Context, userID string, serviceID
 func (r *CartRepository) GetCartItems(ctx context.Context, userID string) ([]models.CartItem, error) {
 	query := `
 		SELECT ci.id, ci.user_id, ci.service_id, ci.created_at,
-			s.name, s.short_description, s.price, s.booking_amount
+			s.id, s.name, s.short_description, s.price, s.booking_amount
 		FROM cart_items ci
 		JOIN services s ON ci.service_id = s.id
 		WHERE ci.user_id = $1
@@ -50,6 +50,7 @@ func (r *CartRepository) GetCartItems(ctx context.Context, userID string) ([]mod
 			&item.UserID,
 			&item.ServiceID,
 			&item.CreatedAt,
+			&item.Service.ID,
 			&item.Service.Name,
 			&item.Service.ShortDescription,
 			&item.Service.Price,

@@ -75,6 +75,20 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Put("/categories/:id", f.ServiceHandler.UpdateServiceCategory)
 	admin.Delete("/categories/:id", f.ServiceHandler.DeleteServiceCategory)
 
+	// Settings management
+	admin.Get("/settings", f.SettingsHandler.GetAllSettings)
+	admin.Get("/settings/categories", f.SettingsHandler.GetSettingsByCategory)
+	admin.Get("/settings/:category/:key", f.SettingsHandler.GetSetting)
+	admin.Put("/settings/:category/:key", f.SettingsHandler.UpdateSetting)
+	admin.Put("/settings/bulk", f.SettingsHandler.UpdateMultipleSettings)
+	admin.Post("/settings", f.SettingsHandler.CreateSetting)
+	admin.Delete("/settings/:category/:key", f.SettingsHandler.DeleteSetting)
+	admin.Post("/settings/test-email", f.SettingsHandler.TestEmailSettings)
+	admin.Post("/settings/reset-defaults", f.SettingsHandler.ResetToDefaults)
+
+	// Public settings endpoint (for frontend)
+	api.Get("/settings/public", f.SettingsHandler.GetPublicSettings)
+
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
 	})
