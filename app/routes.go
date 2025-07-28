@@ -52,9 +52,19 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Order routes
 	orders := api.Group("/orders", middleware.Protected())
 	orders.Get("/", f.OrderHandler.GetOrders)
-	orders.Post("/", f.OrderHandler.CreateOrderFromCart)            // New route for cart-based orders
-	orders.Post("/services/:serviceId", f.OrderHandler.CreateOrder) // Single service orders
+	orders.Get("/number/:orderNumber", f.OrderHandler.GetOrderByNumber) // Get order by number
+	orders.Post("/", f.OrderHandler.CreateOrderFromCart)                // New route for cart-based orders
+	orders.Post("/services/:serviceId", f.OrderHandler.CreateOrder)     // Single service orders
 	orders.Get("/:orderId/history", f.OrderHandler.GetOrderStatusHistory)
+
+	// Payment routes
+	payments := api.Group("/payments", middleware.Protected())
+	payments.Post("/orders/:orderId/create", f.PaymentHandler.CreatePaymentOrder)
+	payments.Post("/verify", f.PaymentHandler.VerifyPayment)
+	payments.Get("/orders/:orderId/status", f.PaymentHandler.GetPaymentStatus)
+
+	// Webhook route (no authentication required)
+	api.Post("/payments/webhook", f.PaymentHandler.HandleWebhook)
 
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))

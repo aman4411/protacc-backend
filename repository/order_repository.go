@@ -420,10 +420,12 @@ func (r *OrderRepository) UpdateOrderStatus(ctx context.Context, orderID int, st
 
 func (r *OrderRepository) GetOrderStatusHistory(ctx context.Context, orderID int) ([]models.OrderStatusHistory, error) {
 	query := `
-		SELECT id, order_id, status, notes, created_by, created_at
-		FROM order_status_history
-		WHERE order_id = $1
-		ORDER BY created_at DESC`
+		SELECT h.id, h.order_id, h.status, h.notes, h.created_by, h.created_at,
+		       u.first_name, u.last_name, u.email
+		FROM order_status_history h
+		LEFT JOIN users u ON h.created_by = u.id
+		WHERE h.order_id = $1
+		ORDER BY h.created_at DESC`
 
 	rows, err := r.db.Query(ctx, query, orderID)
 	if err != nil {
@@ -434,6 +436,9 @@ func (r *OrderRepository) GetOrderStatusHistory(ctx context.Context, orderID int
 	var history []models.OrderStatusHistory
 	for rows.Next() {
 		var entry models.OrderStatusHistory
+		entry.User = &models.User{} // Initialize user object
+
+		var userFirstName, userLastName, userEmail *string
 
 		err := rows.Scan(
 			&entry.ID,
@@ -442,13 +447,239 @@ func (r *OrderRepository) GetOrderStatusHistory(ctx context.Context, orderID int
 			&entry.Notes,
 			&entry.CreatedBy,
 			&entry.CreatedAt,
+			&userFirstName,
+			&userLastName,
+			&userEmail,
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		// Populate user information if available
+		if userFirstName != nil && userLastName != nil && userEmail != nil {
+			entry.User.FirstName = *userFirstName
+			entry.User.LastName = *userLastName
+			entry.User.Email = *userEmail
+		} else {
+			entry.User = nil // No user information (system-generated entry)
 		}
 
 		history = append(history, entry)
 	}
 
 	return history, nil
+}
+
+// GetOrderByRazorpayOrderID retrieves an order by Razorpay order ID
+func (r *OrderRepository) GetOrderByRazorpayOrderID(ctx context.Context, razorpayOrderID string) (*models.Order, error) {
+	query := `SELECT id, user_id, order_number, total_amount, booking_amount, remaining_amount, 
+	          status, payment_status, razorpay_order_id, razorpay_payment_id, payment_method, 
+	          payment_gateway, notes, created_at, updated_at 
+	          FROM orders WHERE razorpay_order_id = $1`
+
+	var order models.Order
+	err := r.db.QueryRow(ctx, query, razorpayOrderID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.OrderNumber,
+		&order.TotalAmount,
+		&order.BookingAmount,
+		&order.RemainingAmount,
+		&order.Status,
+		&order.PaymentStatus,
+		&order.RazorpayOrderID,
+		&order.RazorpayPaymentID,
+		&order.PaymentMethod,
+		&order.PaymentGateway,
+		&order.Notes,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &order, nil
+}
+
+// UpdateOrderPaymentStatus updates the payment status and related fields of an order
+func (r *OrderRepository) UpdateOrderPaymentStatus(ctx context.Context, orderID int, paymentStatus bool, razorpayPaymentID string, newStatus models.OrderStatus) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Update order payment status
+	updateQuery := `UPDATE orders 
+	                SET payment_status = $1, razorpay_payment_id = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
+	                WHERE id = $4`
+
+	_, err = tx.Exec(ctx, updateQuery, paymentStatus, razorpayPaymentID, newStatus, orderID)
+	if err != nil {
+		return err
+	}
+
+	// Insert order status history
+	historyQuery := `INSERT INTO order_status_history (order_id, status, notes, created_by) 
+	                 VALUES ($1, $2, $3, $4)`
+
+	notes := "Payment status updated via Razorpay"
+	if paymentStatus {
+		notes = fmt.Sprintf("Payment successful. Payment ID: %s", razorpayPaymentID)
+	} else {
+		notes = "Payment failed or cancelled"
+	}
+
+	_, err = tx.Exec(ctx, historyQuery, orderID, newStatus, notes, nil)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// UpdateOrderRazorpayOrderID updates the Razorpay order ID for an order
+func (r *OrderRepository) UpdateOrderRazorpayOrderID(ctx context.Context, orderID int, razorpayOrderID string) error {
+	query := `UPDATE orders SET razorpay_order_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, razorpayOrderID, orderID)
+	return err
+}
+
+// GetOrderByID retrieves an order by ID for a specific user
+func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID int, userID string) (*models.Order, error) {
+	query := `SELECT id, user_id, order_number, total_amount, booking_amount, remaining_amount, 
+	          status, payment_status, razorpay_order_id, razorpay_payment_id, payment_method, 
+	          payment_gateway, notes, created_at, updated_at 
+	          FROM orders WHERE id = $1 AND user_id = $2`
+
+	var order models.Order
+	err := r.db.QueryRow(ctx, query, orderID, userID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.OrderNumber,
+		&order.TotalAmount,
+		&order.BookingAmount,
+		&order.RemainingAmount,
+		&order.Status,
+		&order.PaymentStatus,
+		&order.RazorpayOrderID,
+		&order.RazorpayPaymentID,
+		&order.PaymentMethod,
+		&order.PaymentGateway,
+		&order.Notes,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get order items
+	itemsQuery := `SELECT oi.id, oi.order_id, oi.service_id, oi.quantity, oi.price, oi.booking_amount, oi.created_at,
+	               s.name, s.short_description
+	               FROM order_items oi
+	               JOIN services s ON oi.service_id = s.id
+	               WHERE oi.order_id = $1`
+
+	rows, err := r.db.Query(ctx, itemsQuery, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.OrderItem
+	for rows.Next() {
+		var item models.OrderItem
+		item.Service = &models.Service{}
+
+		err := rows.Scan(
+			&item.ID,
+			&item.OrderID,
+			&item.ServiceID,
+			&item.Quantity,
+			&item.Price,
+			&item.BookingAmount,
+			&item.CreatedAt,
+			&item.Service.Name,
+			&item.Service.ShortDescription,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	order.Items = items
+	return &order, nil
+}
+
+// GetOrderByNumber retrieves an order by its order number for a specific user
+func (r *OrderRepository) GetOrderByNumber(ctx context.Context, orderNumber string, userID string) (*models.Order, error) {
+	query := `SELECT id, user_id, order_number, total_amount, booking_amount, remaining_amount, 
+	          status, payment_status, razorpay_order_id, razorpay_payment_id, payment_method, 
+	          payment_gateway, notes, created_at, updated_at 
+	          FROM orders WHERE order_number = $1 AND user_id = $2::uuid`
+
+	var order models.Order
+	err := r.db.QueryRow(ctx, query, orderNumber, userID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.OrderNumber,
+		&order.TotalAmount,
+		&order.BookingAmount,
+		&order.RemainingAmount,
+		&order.Status,
+		&order.PaymentStatus,
+		&order.RazorpayOrderID,
+		&order.RazorpayPaymentID,
+		&order.PaymentMethod,
+		&order.PaymentGateway,
+		&order.Notes,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get order items
+	itemsQuery := `SELECT oi.id, oi.order_id, oi.service_id, oi.quantity, oi.price, oi.booking_amount, oi.created_at,
+	               s.name, s.short_description
+	               FROM order_items oi
+	               JOIN services s ON oi.service_id = s.id
+	               WHERE oi.order_id = $1`
+
+	rows, err := r.db.Query(ctx, itemsQuery, order.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.OrderItem
+	for rows.Next() {
+		var item models.OrderItem
+		item.Service = &models.Service{}
+
+		err := rows.Scan(
+			&item.ID,
+			&item.OrderID,
+			&item.ServiceID,
+			&item.Quantity,
+			&item.Price,
+			&item.BookingAmount,
+			&item.CreatedAt,
+			&item.Service.Name,
+			&item.Service.ShortDescription,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	order.Items = items
+	return &order, nil
 }

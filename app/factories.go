@@ -13,6 +13,7 @@ type Factories struct {
 	ServiceHandler  *handler.ServiceHandler
 	CartHandler     *handler.CartHandler
 	OrderHandler    *handler.OrderHandler
+	PaymentHandler  *handler.PaymentHandler
 	SettingsHandler *handler.SettingsHandler
 }
 
@@ -34,6 +35,7 @@ func NewFactories() (*Factories, error) {
 	serviceService := service.NewServiceService(serviceRepo)
 	cartService := service.NewCartService(cartRepo)
 	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo)
+	paymentService := service.NewPaymentService(orderRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 
 	// Initialize handlers
@@ -41,6 +43,7 @@ func NewFactories() (*Factories, error) {
 	serviceHandler := handler.NewServiceHandler(serviceService)
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
+	paymentHandler := handler.NewPaymentHandler(paymentService, orderService)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
 
 	return &Factories{
@@ -48,6 +51,7 @@ func NewFactories() (*Factories, error) {
 		ServiceHandler:  serviceHandler,
 		CartHandler:     cartHandler,
 		OrderHandler:    orderHandler,
+		PaymentHandler:  paymentHandler,
 		SettingsHandler: settingsHandler,
 	}, nil
 }

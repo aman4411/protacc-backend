@@ -80,26 +80,31 @@ type OrderItem struct {
 }
 
 type Order struct {
-	ID              int         `json:"id" db:"id"`
-	UserID          string      `json:"user_id" db:"user_id"`
-	OrderNumber     string      `json:"order_number" db:"order_number"`
-	TotalAmount     float64     `json:"total_amount" db:"total_amount"`
-	BookingAmount   float64     `json:"booking_amount" db:"booking_amount"`
-	RemainingAmount float64     `json:"remaining_amount" db:"remaining_amount"`
-	Status          OrderStatus `json:"status" db:"status"`
-	PaymentStatus   bool        `json:"payment_status" db:"payment_status"`
-	Notes           string      `json:"notes" db:"notes"`
-	CreatedAt       time.Time   `json:"created_at" db:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at" db:"updated_at"`
-	Items           []OrderItem `json:"items,omitempty" db:"-"`
-	User            *User       `json:"user,omitempty" db:"-"`
+	ID                int         `json:"id" db:"id"`
+	UserID            string      `json:"user_id" db:"user_id"`
+	OrderNumber       string      `json:"order_number" db:"order_number"`
+	TotalAmount       float64     `json:"total_amount" db:"total_amount"`
+	BookingAmount     float64     `json:"booking_amount" db:"booking_amount"`
+	RemainingAmount   float64     `json:"remaining_amount" db:"remaining_amount"`
+	Status            OrderStatus `json:"status" db:"status"`
+	PaymentStatus     bool        `json:"payment_status" db:"payment_status"`
+	RazorpayOrderID   *string     `json:"razorpay_order_id,omitempty" db:"razorpay_order_id"`
+	RazorpayPaymentID *string     `json:"razorpay_payment_id,omitempty" db:"razorpay_payment_id"`
+	PaymentMethod     *string     `json:"payment_method,omitempty" db:"payment_method"`
+	PaymentGateway    *string     `json:"payment_gateway,omitempty" db:"payment_gateway"`
+	Notes             *string     `json:"notes,omitempty" db:"notes"`
+	CreatedAt         time.Time   `json:"created_at" db:"created_at"`
+	UpdatedAt         time.Time   `json:"updated_at" db:"updated_at"`
+	Items             []OrderItem `json:"items,omitempty" db:"-"`
+	User              *User       `json:"user,omitempty" db:"-"`
 }
 
 type OrderStatusHistory struct {
 	ID        int         `json:"id" db:"id"`
 	OrderID   int         `json:"order_id" db:"order_id"`
 	Status    OrderStatus `json:"status" db:"status"`
-	Notes     string      `json:"notes" db:"notes"`
-	CreatedBy string      `json:"created_by" db:"created_by"`
+	Notes     *string     `json:"notes,omitempty" db:"notes"`
+	CreatedBy *string     `json:"created_by,omitempty" db:"created_by"`
 	CreatedAt time.Time   `json:"created_at" db:"created_at"`
+	User      *User       `json:"user,omitempty" db:"-"`
 }

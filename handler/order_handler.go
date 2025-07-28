@@ -149,3 +149,17 @@ func (h *OrderHandler) GetOrderStatusHistory(c *fiber.Ctx) error {
 
 	return c.JSON(history)
 }
+
+func (h *OrderHandler) GetOrderByNumber(c *fiber.Ctx) error {
+	orderNumber := c.Params("orderNumber")
+	userID := getOrderUserID(c)
+
+	order, err := h.svc.GetOrderByNumber(c.Context(), orderNumber, userID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Order not found",
+		})
+	}
+
+	return c.JSON(order)
+}

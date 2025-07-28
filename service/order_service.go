@@ -83,3 +83,19 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID int, statu
 func (s *OrderService) GetOrderStatusHistory(ctx context.Context, orderID int) ([]models.OrderStatusHistory, error) {
 	return s.orderRepo.GetOrderStatusHistory(ctx, orderID)
 }
+
+// Add these methods to the OrderService
+
+// GetOrderByID retrieves an order by ID for a specific user
+func (s *OrderService) GetOrderByID(ctx context.Context, orderID int, userID string) (*models.Order, error) {
+	return s.orderRepo.GetOrderByID(ctx, orderID, userID)
+}
+
+// UpdateOrderRazorpayOrderID updates the Razorpay order ID for an order
+func (s *OrderService) UpdateOrderRazorpayOrderID(ctx context.Context, orderID int, razorpayOrderID string) error {
+	return s.orderRepo.UpdateOrderRazorpayOrderID(ctx, orderID, razorpayOrderID)
+}
+
+func (s *OrderService) GetOrderByNumber(ctx context.Context, orderNumber string, userID string) (*models.Order, error) {
+	return s.orderRepo.GetOrderByNumber(ctx, orderNumber, userID)
+}
