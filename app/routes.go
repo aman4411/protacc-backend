@@ -45,23 +45,23 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 
 	// Cart routes
 	cart := api.Group("/cart", middleware.Protected())
-	cart.Get("/", f.ServiceHandler.GetCartItems)
-	cart.Post("/:serviceId", f.ServiceHandler.AddToCart)
-	cart.Delete("/:serviceId", f.ServiceHandler.RemoveFromCart)
+	cart.Get("/", f.CartHandler.GetCartItems)
+	cart.Post("/:serviceId", f.CartHandler.AddToCart)
+	cart.Delete("/:serviceId", f.CartHandler.RemoveFromCart)
 
 	// Order routes
 	orders := api.Group("/orders", middleware.Protected())
-	orders.Get("/", f.ServiceHandler.GetOrders)
-	orders.Post("/", f.ServiceHandler.CreateOrderFromCart)            // New route for cart-based orders
-	orders.Post("/services/:serviceId", f.ServiceHandler.CreateOrder) // Single service orders
-	orders.Get("/:orderId/history", f.ServiceHandler.GetOrderStatusHistory)
+	orders.Get("/", f.OrderHandler.GetOrders)
+	orders.Post("/", f.OrderHandler.CreateOrderFromCart)            // New route for cart-based orders
+	orders.Post("/services/:serviceId", f.OrderHandler.CreateOrder) // Single service orders
+	orders.Get("/:orderId/history", f.OrderHandler.GetOrderStatusHistory)
 
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
 	admin.Get("/users", f.UserHandler.GetUsers)
 	admin.Put("/users/:userId/role", f.UserHandler.UpdateUserRole)
-	admin.Get("/orders", f.ServiceHandler.GetOrders)
-	admin.Put("/orders/:orderId/status", f.ServiceHandler.UpdateOrderStatus)
+	admin.Get("/orders", f.OrderHandler.GetOrders)
+	admin.Put("/orders/:orderId/status", f.OrderHandler.UpdateOrderStatus)
 
 	// Service management
 	admin.Get("/services", f.ServiceHandler.GetServices)
