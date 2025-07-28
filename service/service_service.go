@@ -29,7 +29,7 @@ func (s *ServiceService) GetServicesByCategory(ctx context.Context, categorySlug
 	return s.repo.GetServices(ctx, nil)
 }
 
-func (s *ServiceService) GetServiceBySlug(ctx context.Context, categorySlug, serviceSlug string) (*models.Service, error) {
+func (s *ServiceService) GetServiceBySlug(ctx context.Context, serviceSlug string) (*models.Service, error) {
 	return s.repo.GetServiceBySlug(ctx, serviceSlug)
 }
 

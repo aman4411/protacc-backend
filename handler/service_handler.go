@@ -80,15 +80,14 @@ func (h *ServiceHandler) GetServiceByID(c *fiber.Ctx) error {
 }
 
 func (h *ServiceHandler) GetServiceBySlug(c *fiber.Ctx) error {
-	categorySlug := c.Params("category")
 	serviceSlug := c.Params("slug")
-	if categorySlug == "" || serviceSlug == "" {
+	if serviceSlug == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid service or category slug",
+			"error": "Invalid service slug",
 		})
 	}
 
-	service, err := h.svc.GetServiceBySlug(c.Context(), categorySlug, serviceSlug)
+	service, err := h.svc.GetServiceBySlug(c.Context(), serviceSlug)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),
