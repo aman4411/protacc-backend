@@ -51,7 +51,8 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Order routes
 	orders := api.Group("/orders", middleware.Protected())
 	orders.Get("/", f.ServiceHandler.GetOrders)
-	orders.Post("/:serviceId", f.ServiceHandler.CreateOrder)
+	orders.Post("/", f.ServiceHandler.CreateOrderFromCart)            // New route for cart-based orders
+	orders.Post("/services/:serviceId", f.ServiceHandler.CreateOrder) // Single service orders
 	orders.Get("/:orderId/history", f.ServiceHandler.GetOrderStatusHistory)
 
 	// Admin routes

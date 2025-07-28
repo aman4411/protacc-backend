@@ -23,24 +23,14 @@ func getUserID(c *fiber.Ctx) string {
 
 // Service Category Handlers
 func (h *ServiceHandler) CreateServiceCategory(c *fiber.Ctx) error {
-	var category models.ServiceCategory
-	if err := c.BodyParser(&category); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	if err := h.svc.CreateServiceCategory(c.Context(), &category); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(category)
+	// TODO: Implement category creation if needed
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"error": "Service category creation not implemented",
+	})
 }
 
 func (h *ServiceHandler) GetServiceCategories(c *fiber.Ctx) error {
-	categories, err := h.svc.GetServiceCategories(c.Context())
+	categories, err := h.svc.GetAllCategories(c.Context())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -52,31 +42,16 @@ func (h *ServiceHandler) GetServiceCategories(c *fiber.Ctx) error {
 
 // Service Handlers
 func (h *ServiceHandler) CreateService(c *fiber.Ctx) error {
-	var service models.Service
-	if err := c.BodyParser(&service); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	if err := h.svc.CreateService(c.Context(), &service); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(service)
+	// TODO: Implement service creation if needed
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"error": "Service creation not implemented",
+	})
 }
 
 func (h *ServiceHandler) GetServices(c *fiber.Ctx) error {
-	var categoryID *int
-	if catIDStr := c.Query("category_id"); catIDStr != "" {
-		if id, err := strconv.Atoi(catIDStr); err == nil {
-			categoryID = &id
-		}
-	}
+	categorySlug := c.Query("category")
 
-	services, err := h.svc.GetServices(c.Context(), categoryID)
+	services, err := h.svc.GetServicesByCategory(c.Context(), categorySlug)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -105,14 +80,15 @@ func (h *ServiceHandler) GetServiceByID(c *fiber.Ctx) error {
 }
 
 func (h *ServiceHandler) GetServiceBySlug(c *fiber.Ctx) error {
-	slug := c.Params("slug")
-	if slug == "" {
+	categorySlug := c.Params("category")
+	serviceSlug := c.Params("slug")
+	if categorySlug == "" || serviceSlug == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid service slug",
+			"error": "Invalid service or category slug",
 		})
 	}
 
-	service, err := h.svc.GetServiceBySlug(c.Context(), slug)
+	service, err := h.svc.GetServiceBySlug(c.Context(), categorySlug, serviceSlug)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": err.Error(),
@@ -190,6 +166,19 @@ func (h *ServiceHandler) CreateOrder(c *fiber.Ctx) error {
 	userID := getUserID(c)
 
 	order, err := h.svc.CreateOrder(c.Context(), userID, serviceID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(order)
+}
+
+func (h *ServiceHandler) CreateOrderFromCart(c *fiber.Ctx) error {
+	userID := getUserID(c)
+
+	order, err := h.svc.CreateOrderFromCart(c.Context(), userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),

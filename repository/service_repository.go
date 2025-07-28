@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -290,17 +292,23 @@ func (r *ServiceRepository) RemoveFromCart(ctx context.Context, userID string, s
 
 // Order Methods
 func (r *ServiceRepository) CreateOrder(ctx context.Context, order *models.Order) error {
-	query := `
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Create order
+	orderQuery := `
 		INSERT INTO orders (
-			user_id, service_id, order_number, total_amount,
+			user_id, order_number, total_amount,
 			booking_amount, remaining_amount, status, payment_status, notes
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRow(ctx, query,
+	err = tx.QueryRow(ctx, orderQuery,
 		order.UserID,
-		order.ServiceID,
 		order.OrderNumber,
 		order.TotalAmount,
 		order.BookingAmount,
@@ -309,17 +317,108 @@ func (r *ServiceRepository) CreateOrder(ctx context.Context, order *models.Order
 		order.PaymentStatus,
 		order.Notes,
 	).Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	// Create order items
+	for i := range order.Items {
+		itemQuery := `
+			INSERT INTO order_items (
+				order_id, service_id, quantity, price, booking_amount
+			)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, created_at`
+
+		err = tx.QueryRow(ctx, itemQuery,
+			order.ID,
+			order.Items[i].ServiceID,
+			order.Items[i].Quantity,
+			order.Items[i].Price,
+			order.Items[i].BookingAmount,
+		).Scan(&order.Items[i].ID, &order.Items[i].CreatedAt)
+		if err != nil {
+			return err
+		}
+		order.Items[i].OrderID = order.ID
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *ServiceRepository) CreateOrderFromCart(ctx context.Context, userID string) (*models.Order, error) {
+	// Get cart items
+	cartItems, err := r.GetCartItems(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cartItems) == 0 {
+		return nil, fmt.Errorf("cart is empty")
+	}
+
+	// Calculate totals
+	var totalAmount, bookingAmount float64
+	orderItems := make([]models.OrderItem, len(cartItems))
+
+	for i, cartItem := range cartItems {
+		totalAmount += cartItem.Service.Price
+		bookingAmount += cartItem.Service.BookingAmount
+
+		orderItems[i] = models.OrderItem{
+			ServiceID:     cartItem.ServiceID,
+			Quantity:      1,
+			Price:         cartItem.Service.Price,
+			BookingAmount: cartItem.Service.BookingAmount,
+		}
+	}
+
+	// Create order
+	order := &models.Order{
+		UserID:          userID,
+		OrderNumber:     generateOrderNumber(),
+		TotalAmount:     totalAmount,
+		BookingAmount:   bookingAmount,
+		RemainingAmount: totalAmount - bookingAmount,
+		Status:          models.OrderStatusPendingPayment,
+		PaymentStatus:   false,
+		Items:           orderItems,
+	}
+
+	err = r.CreateOrder(ctx, order)
+	if err != nil {
+		return nil, err
+	}
+
+	// Clear cart after successful order creation
+	err = r.ClearCart(ctx, userID)
+	if err != nil {
+		// Log error but don't fail the order creation
+		// The order was successful, clearing cart is secondary
+	}
+
+	return order, nil
+}
+
+func (r *ServiceRepository) ClearCart(ctx context.Context, userID string) error {
+	query := `DELETE FROM cart_items WHERE user_id = $1`
+	_, err := r.db.Exec(ctx, query, userID)
+	return err
+}
+
+// Helper function for generating order numbers
+func generateOrderNumber() string {
+	timestamp := time.Now().Format("20060102150405")
+	return fmt.Sprintf("ORD%s", timestamp)
 }
 
 func (r *ServiceRepository) GetOrders(ctx context.Context, userID *string) ([]models.Order, error) {
 	query := `
-		SELECT o.id, o.user_id, o.service_id, o.order_number,
+		SELECT o.id, o.user_id, o.order_number,
 			o.total_amount, o.booking_amount, o.remaining_amount,
 			o.status, o.payment_status, o.notes, o.created_at, o.updated_at,
-			s.name, s.short_description,
 			u.first_name, u.last_name, u.email
 		FROM orders o
-		JOIN services s ON o.service_id = s.id
 		JOIN users u ON o.user_id = u.id
 		WHERE ($1::uuid IS NULL OR o.user_id = $1)
 		ORDER BY o.created_at DESC`
@@ -333,13 +432,11 @@ func (r *ServiceRepository) GetOrders(ctx context.Context, userID *string) ([]mo
 	var orders []models.Order
 	for rows.Next() {
 		var order models.Order
-		order.Service = &models.Service{}
 		order.User = &models.User{}
 
 		err := rows.Scan(
 			&order.ID,
 			&order.UserID,
-			&order.ServiceID,
 			&order.OrderNumber,
 			&order.TotalAmount,
 			&order.BookingAmount,
@@ -349,8 +446,6 @@ func (r *ServiceRepository) GetOrders(ctx context.Context, userID *string) ([]mo
 			&order.Notes,
 			&order.CreatedAt,
 			&order.UpdatedAt,
-			&order.Service.Name,
-			&order.Service.ShortDescription,
 			&order.User.FirstName,
 			&order.User.LastName,
 			&order.User.Email,
@@ -358,10 +453,58 @@ func (r *ServiceRepository) GetOrders(ctx context.Context, userID *string) ([]mo
 		if err != nil {
 			return nil, err
 		}
+
+		// Load order items
+		items, err := r.GetOrderItems(ctx, order.ID)
+		if err != nil {
+			return nil, err
+		}
+		order.Items = items
+
 		orders = append(orders, order)
 	}
 
 	return orders, nil
+}
+
+func (r *ServiceRepository) GetOrderItems(ctx context.Context, orderID int) ([]models.OrderItem, error) {
+	query := `
+		SELECT oi.id, oi.order_id, oi.service_id, oi.quantity, oi.price, oi.booking_amount, oi.created_at,
+			s.name, s.short_description
+		FROM order_items oi
+		JOIN services s ON oi.service_id = s.id
+		WHERE oi.order_id = $1
+		ORDER BY oi.created_at`
+
+	rows, err := r.db.Query(ctx, query, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.OrderItem
+	for rows.Next() {
+		var item models.OrderItem
+		item.Service = &models.Service{}
+
+		err := rows.Scan(
+			&item.ID,
+			&item.OrderID,
+			&item.ServiceID,
+			&item.Quantity,
+			&item.Price,
+			&item.BookingAmount,
+			&item.CreatedAt,
+			&item.Service.Name,
+			&item.Service.ShortDescription,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, nil
 }
 
 func (r *ServiceRepository) UpdateOrderStatus(ctx context.Context, orderID int, status models.OrderStatus, notes string, updatedBy string) error {
@@ -397,10 +540,8 @@ func (r *ServiceRepository) UpdateOrderStatus(ctx context.Context, orderID int, 
 
 func (r *ServiceRepository) GetOrderStatusHistory(ctx context.Context, orderID int) ([]models.OrderStatusHistory, error) {
 	query := `
-		SELECT h.id, h.order_id, h.status, h.notes, h.created_by, h.created_at,
-			u.first_name, u.last_name
+		SELECT h.id, h.order_id, h.status, h.notes, h.created_by, h.created_at
 		FROM order_status_history h
-		JOIN users u ON h.created_by = u.id
 		WHERE h.order_id = $1
 		ORDER BY h.created_at DESC`
 
@@ -413,7 +554,6 @@ func (r *ServiceRepository) GetOrderStatusHistory(ctx context.Context, orderID i
 	var history []models.OrderStatusHistory
 	for rows.Next() {
 		var h models.OrderStatusHistory
-		h.User = &models.User{}
 
 		err := rows.Scan(
 			&h.ID,
@@ -422,8 +562,6 @@ func (r *ServiceRepository) GetOrderStatusHistory(ctx context.Context, orderID i
 			&h.Notes,
 			&h.CreatedBy,
 			&h.CreatedAt,
-			&h.User.FirstName,
-			&h.User.LastName,
 		)
 		if err != nil {
 			return nil, err

@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/gosimple/slug"
 )
 
 type ServiceStatus string
@@ -41,6 +43,10 @@ type Service struct {
 	Category              *ServiceCategory `json:"category,omitempty" db:"-"`
 }
 
+func (s *Service) GenerateSlug() {
+	s.Slug = slug.Make(s.Name)
+}
+
 type CartItem struct {
 	ID        int       `json:"id" db:"id"`
 	UserID    string    `json:"user_id" db:"user_id"`
@@ -62,10 +68,20 @@ const (
 	OrderStatusCancelled         OrderStatus = "cancelled"
 )
 
+type OrderItem struct {
+	ID            int       `json:"id" db:"id"`
+	OrderID       int       `json:"order_id" db:"order_id"`
+	ServiceID     int       `json:"service_id" db:"service_id"`
+	Quantity      int       `json:"quantity" db:"quantity"`
+	Price         float64   `json:"price" db:"price"`
+	BookingAmount float64   `json:"booking_amount" db:"booking_amount"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	Service       *Service  `json:"service,omitempty" db:"-"`
+}
+
 type Order struct {
 	ID              int         `json:"id" db:"id"`
 	UserID          string      `json:"user_id" db:"user_id"`
-	ServiceID       int         `json:"service_id" db:"service_id"`
 	OrderNumber     string      `json:"order_number" db:"order_number"`
 	TotalAmount     float64     `json:"total_amount" db:"total_amount"`
 	BookingAmount   float64     `json:"booking_amount" db:"booking_amount"`
@@ -75,7 +91,7 @@ type Order struct {
 	Notes           string      `json:"notes" db:"notes"`
 	CreatedAt       time.Time   `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at" db:"updated_at"`
-	Service         *Service    `json:"service,omitempty" db:"-"`
+	Items           []OrderItem `json:"items,omitempty" db:"-"`
 	User            *User       `json:"user,omitempty" db:"-"`
 }
 
@@ -86,5 +102,4 @@ type OrderStatusHistory struct {
 	Notes     string      `json:"notes" db:"notes"`
 	CreatedBy string      `json:"created_by" db:"created_by"`
 	CreatedAt time.Time   `json:"created_at" db:"created_at"`
-	User      *User       `json:"user,omitempty" db:"-"`
 }
