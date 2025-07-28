@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aman4411/protacc-backend/models"
+	"github.com/gosimple/slug"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,19 +20,73 @@ func NewServiceRepository(db *pgxpool.Pool) *ServiceRepository {
 }
 
 // Service Category Methods
-func (r *ServiceRepository) CreateServiceCategory(ctx context.Context, category *models.ServiceCategory) error {
+func (r *ServiceRepository) CreateServiceCategory(ctx context.Context, category *models.ServiceCategory) (*models.ServiceCategory, error) {
+	// Generate slug from name if not provided
+	if category.Slug == "" {
+		category.Slug = slug.Make(category.Name)
+	}
+
 	query := `
 		INSERT INTO service_categories (name, slug, description, icon, status)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRow(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		category.Name,
 		category.Slug,
 		category.Description,
 		category.Icon,
 		category.Status,
 	).Scan(&category.ID, &category.CreatedAt, &category.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return category, nil
+}
+
+func (r *ServiceRepository) UpdateServiceCategory(ctx context.Context, category *models.ServiceCategory) (*models.ServiceCategory, error) {
+	// Generate slug from name if not provided
+	if category.Slug == "" {
+		category.Slug = slug.Make(category.Name)
+	}
+
+	query := `
+		UPDATE service_categories 
+		SET name = $1, slug = $2, description = $3, icon = $4, status = $5, updated_at = NOW()
+		WHERE id = $6
+		RETURNING created_at, updated_at`
+
+	err := r.db.QueryRow(ctx, query,
+		category.Name,
+		category.Slug,
+		category.Description,
+		category.Icon,
+		category.Status,
+		category.ID,
+	).Scan(&category.CreatedAt, &category.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return category, nil
+}
+
+func (r *ServiceRepository) DeleteServiceCategory(ctx context.Context, categoryID int) error {
+	query := `DELETE FROM service_categories WHERE id = $1`
+
+	result, err := r.db.Exec(ctx, query, categoryID)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("category not found")
+	}
+
+	return nil
 }
 
 func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.ServiceCategory, error) {
@@ -143,7 +198,12 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 }
 
 // Service Methods
-func (r *ServiceRepository) CreateService(ctx context.Context, service *models.Service) error {
+func (r *ServiceRepository) CreateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	// Generate slug from name if not provided
+	if service.Slug == "" {
+		service.GenerateSlug()
+	}
+
 	query := `
 		INSERT INTO services (
 			category_id, name, slug, description, short_description,
@@ -153,7 +213,7 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRow(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		service.CategoryID,
 		service.Name,
 		service.Slug,
@@ -167,6 +227,64 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		service.Icon,
 		service.Status,
 	).Scan(&service.ID, &service.CreatedAt, &service.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return service, nil
+}
+
+func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	// Generate slug from name if not provided
+	if service.Slug == "" {
+		service.GenerateSlug()
+	}
+
+	query := `
+		UPDATE services 
+		SET category_id = $1, name = $2, slug = $3, description = $4, short_description = $5,
+			features = $6, requirements = $7, price = $8, booking_amount = $9,
+			estimated_delivery_days = $10, icon = $11, status = $12, updated_at = NOW()
+		WHERE id = $13
+		RETURNING created_at, updated_at`
+
+	err := r.db.QueryRow(ctx, query,
+		service.CategoryID,
+		service.Name,
+		service.Slug,
+		service.Description,
+		service.ShortDescription,
+		service.Features,
+		service.Requirements,
+		service.Price,
+		service.BookingAmount,
+		service.EstimatedDeliveryDays,
+		service.Icon,
+		service.Status,
+		service.ID,
+	).Scan(&service.CreatedAt, &service.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return service, nil
+}
+
+func (r *ServiceRepository) DeleteService(ctx context.Context, serviceID int) error {
+	query := `DELETE FROM services WHERE id = $1`
+
+	result, err := r.db.Exec(ctx, query, serviceID)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("service not found")
+	}
+
+	return nil
 }
 
 func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, categorySlug string) ([]models.Service, error) {

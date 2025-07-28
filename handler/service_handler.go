@@ -23,9 +23,66 @@ func getUserID(c *fiber.Ctx) string {
 
 // Service Category Handlers
 func (h *ServiceHandler) CreateServiceCategory(c *fiber.Ctx) error {
-	// TODO: Implement category creation if needed
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"error": "Service category creation not implemented",
+	var req models.ServiceCategory
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	category, err := h.svc.CreateServiceCategory(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(category)
+}
+
+func (h *ServiceHandler) UpdateServiceCategory(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid category ID",
+		})
+	}
+
+	var req models.ServiceCategory
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	req.ID = id
+	category, err := h.svc.UpdateServiceCategory(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(category)
+}
+
+func (h *ServiceHandler) DeleteServiceCategory(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid category ID",
+		})
+	}
+
+	err = h.svc.DeleteServiceCategory(c.Context(), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Category deleted successfully",
 	})
 }
 
@@ -42,9 +99,66 @@ func (h *ServiceHandler) GetServiceCategories(c *fiber.Ctx) error {
 
 // Service Handlers
 func (h *ServiceHandler) CreateService(c *fiber.Ctx) error {
-	// TODO: Implement service creation if needed
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"error": "Service creation not implemented",
+	var req models.Service
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	service, err := h.svc.CreateService(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(service)
+}
+
+func (h *ServiceHandler) UpdateService(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
+
+	var req models.Service
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	req.ID = id
+	service, err := h.svc.UpdateService(c.Context(), &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(service)
+}
+
+func (h *ServiceHandler) DeleteService(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
+
+	err = h.svc.DeleteService(c.Context(), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Service deleted successfully",
 	})
 }
 

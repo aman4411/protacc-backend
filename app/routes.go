@@ -63,6 +63,18 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Get("/orders", f.ServiceHandler.GetOrders)
 	admin.Put("/orders/:orderId/status", f.ServiceHandler.UpdateOrderStatus)
 
+	// Service management
+	admin.Get("/services", f.ServiceHandler.GetServices)
+	admin.Post("/services", f.ServiceHandler.CreateService)
+	admin.Put("/services/:id", f.ServiceHandler.UpdateService)
+	admin.Delete("/services/:id", f.ServiceHandler.DeleteService)
+
+	// Category management
+	admin.Get("/categories", f.ServiceHandler.GetServiceCategories)
+	admin.Post("/categories", f.ServiceHandler.CreateServiceCategory)
+	admin.Put("/categories/:id", f.ServiceHandler.UpdateServiceCategory)
+	admin.Delete("/categories/:id", f.ServiceHandler.DeleteServiceCategory)
+
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
 	})

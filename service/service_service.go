@@ -23,6 +23,18 @@ func (s *ServiceService) GetAllCategories(ctx context.Context) ([]models.Service
 	return s.repo.GetServiceCategories(ctx)
 }
 
+func (s *ServiceService) CreateServiceCategory(ctx context.Context, category *models.ServiceCategory) (*models.ServiceCategory, error) {
+	return s.repo.CreateServiceCategory(ctx, category)
+}
+
+func (s *ServiceService) UpdateServiceCategory(ctx context.Context, category *models.ServiceCategory) (*models.ServiceCategory, error) {
+	return s.repo.UpdateServiceCategory(ctx, category)
+}
+
+func (s *ServiceService) DeleteServiceCategory(ctx context.Context, categoryID int) error {
+	return s.repo.DeleteServiceCategory(ctx, categoryID)
+}
+
 func (s *ServiceService) GetServices(ctx context.Context, categoryID *int, categorySlug string) ([]models.Service, error) {
 	return s.repo.GetServices(ctx, categoryID, categorySlug)
 }
@@ -44,6 +56,18 @@ func (s *ServiceService) SearchServices(ctx context.Context, query string) ([]mo
 		return []models.Service{}, nil
 	}
 	return s.repo.SearchServices(ctx, query)
+}
+
+func (s *ServiceService) CreateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	return s.repo.CreateService(ctx, service)
+}
+
+func (s *ServiceService) UpdateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	return s.repo.UpdateService(ctx, service)
+}
+
+func (s *ServiceService) DeleteService(ctx context.Context, serviceID int) error {
+	return s.repo.DeleteService(ctx, serviceID)
 }
 
 func (s *ServiceService) AddToCart(ctx context.Context, userID string, serviceID int) error {
