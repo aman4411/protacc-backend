@@ -248,3 +248,15 @@ func (h *UserHandler) UpdateUserRole(c *fiber.Ctx) error {
 		"message": "User role updated successfully",
 	})
 }
+
+// GetDashboardStats returns dashboard statistics for admin
+func (h *UserHandler) GetDashboardStats(c *fiber.Ctx) error {
+	stats, err := h.userService.GetDashboardStats(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(stats)
+}

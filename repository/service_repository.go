@@ -26,8 +26,8 @@ func (r *ServiceRepository) CreateServiceCategory(ctx context.Context, category 
 	}
 
 	query := `
-		INSERT INTO service_categories (name, slug, description, icon, status)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO service_categories (name, slug, description, icon, status, priority)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -36,6 +36,7 @@ func (r *ServiceRepository) CreateServiceCategory(ctx context.Context, category 
 		category.Description,
 		category.Icon,
 		category.Status,
+		category.Priority,
 	).Scan(&category.ID, &category.CreatedAt, &category.UpdatedAt)
 
 	if err != nil {
@@ -53,8 +54,8 @@ func (r *ServiceRepository) UpdateServiceCategory(ctx context.Context, category 
 
 	query := `
 		UPDATE service_categories 
-		SET name = $1, slug = $2, description = $3, icon = $4, status = $5, updated_at = NOW()
-		WHERE id = $6
+		SET name = $1, slug = $2, description = $3, icon = $4, status = $5, priority = $6, updated_at = NOW()
+		WHERE id = $7
 		RETURNING created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -63,6 +64,7 @@ func (r *ServiceRepository) UpdateServiceCategory(ctx context.Context, category 
 		category.Description,
 		category.Icon,
 		category.Status,
+		category.Priority,
 		category.ID,
 	).Scan(&category.CreatedAt, &category.UpdatedAt)
 
@@ -90,10 +92,10 @@ func (r *ServiceRepository) DeleteServiceCategory(ctx context.Context, categoryI
 
 func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.ServiceCategory, error) {
 	query := `
-		SELECT id, name, slug, description, icon, status, created_at, updated_at
+		SELECT id, name, slug, description, icon, status, priority, created_at, updated_at
 		FROM service_categories
 		WHERE status = 'active'
-		ORDER BY name`
+		ORDER BY priority ASC, name ASC`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -111,6 +113,7 @@ func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.
 			&category.Description,
 			&category.Icon,
 			&category.Status,
+			&category.Priority,
 			&category.CreatedAt,
 			&category.UpdatedAt,
 		)
@@ -207,9 +210,9 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		INSERT INTO services (
 			category_id, name, slug, description, short_description,
 			features, requirements, price, booking_amount,
-			estimated_delivery_days, icon, status
+			estimated_delivery_days, icon, status, priority
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -225,6 +228,7 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		service.EstimatedDeliveryDays,
 		service.Icon,
 		service.Status,
+		service.Priority,
 	).Scan(&service.ID, &service.CreatedAt, &service.UpdatedAt)
 
 	if err != nil {
@@ -244,8 +248,8 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 		UPDATE services 
 		SET category_id = $1, name = $2, slug = $3, description = $4, short_description = $5,
 			features = $6, requirements = $7, price = $8, booking_amount = $9,
-			estimated_delivery_days = $10, icon = $11, status = $12, updated_at = NOW()
-		WHERE id = $13
+			estimated_delivery_days = $10, icon = $11, status = $12, priority = $13, updated_at = NOW()
+		WHERE id = $14
 		RETURNING created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -261,6 +265,7 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 		service.EstimatedDeliveryDays,
 		service.Icon,
 		service.Status,
+		service.Priority,
 		service.ID,
 	).Scan(&service.CreatedAt, &service.UpdatedAt)
 
@@ -290,15 +295,15 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 	query := `
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.price,
-			s.booking_amount, s.estimated_delivery_days, s.icon, s.status,
+			s.booking_amount, s.estimated_delivery_days, s.icon, s.status, s.priority,
 			s.created_at, s.updated_at,
-			c.id, c.name, c.slug, c.description, c.icon, c.status
+			c.id, c.name, c.slug, c.description, c.icon, c.status, c.priority
 		FROM services s
 		JOIN service_categories c ON s.category_id = c.id
 		WHERE s.status = 'active'
 		AND ($1::int IS NULL OR s.category_id = $1)
 		AND ($2::text = '' OR c.slug = $2)
-		ORDER BY s.name`
+		ORDER BY c.priority ASC, s.priority ASC, s.name ASC`
 
 	rows, err := r.db.Query(ctx, query, categoryID, categorySlug)
 	if err != nil {
@@ -325,6 +330,7 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 			&service.EstimatedDeliveryDays,
 			&service.Icon,
 			&service.Status,
+			&service.Priority,
 			&service.CreatedAt,
 			&service.UpdatedAt,
 			&service.Category.ID,
@@ -333,6 +339,7 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 			&service.Category.Description,
 			&service.Category.Icon,
 			&service.Category.Status,
+			&service.Category.Priority,
 		)
 		if err != nil {
 			return nil, err
@@ -425,4 +432,35 @@ func (r *ServiceRepository) GetServiceBySlug(ctx context.Context, slug string) (
 	}
 
 	return service, nil
+}
+
+// Priority Management Methods
+func (r *ServiceRepository) UpdateCategoryPriority(ctx context.Context, categoryID int, priority int) error {
+	query := `UPDATE service_categories SET priority = $1, updated_at = NOW() WHERE id = $2`
+
+	result, err := r.db.Exec(ctx, query, priority, categoryID)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("category not found")
+	}
+
+	return nil
+}
+
+func (r *ServiceRepository) UpdateServicePriority(ctx context.Context, serviceID int, priority int) error {
+	query := `UPDATE services SET priority = $1, updated_at = NOW() WHERE id = $2`
+
+	result, err := r.db.Exec(ctx, query, priority, serviceID)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("service not found")
+	}
+
+	return nil
 }

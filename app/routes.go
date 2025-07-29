@@ -68,6 +68,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
+	admin.Get("/dashboard/stats", f.UserHandler.GetDashboardStats)
 	admin.Get("/users", f.UserHandler.GetUsers)
 	admin.Put("/users/:userId/role", f.UserHandler.UpdateUserRole)
 	admin.Get("/orders", f.OrderHandler.GetOrders)
@@ -84,6 +85,10 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/categories", f.ServiceHandler.CreateServiceCategory)
 	admin.Put("/categories/:id", f.ServiceHandler.UpdateServiceCategory)
 	admin.Delete("/categories/:id", f.ServiceHandler.DeleteServiceCategory)
+
+	// Priority management
+	admin.Put("/categories/:id/priority", f.ServiceHandler.UpdateCategoryPriority)
+	admin.Put("/services/:id/priority", f.ServiceHandler.UpdateServicePriority)
 
 	// Settings management
 	admin.Get("/settings", f.SettingsHandler.GetAllSettings)

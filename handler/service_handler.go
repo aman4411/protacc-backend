@@ -240,3 +240,62 @@ func (h *ServiceHandler) SearchServices(c *fiber.Ctx) error {
 
 	return c.JSON(services)
 }
+
+// Priority Management Handlers
+func (h *ServiceHandler) UpdateCategoryPriority(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid category ID",
+		})
+	}
+
+	var req struct {
+		Priority int `json:"priority"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	err = h.svc.UpdateCategoryPriority(c.Context(), id, req.Priority)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Category priority updated successfully",
+	})
+}
+
+func (h *ServiceHandler) UpdateServicePriority(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid service ID",
+		})
+	}
+
+	var req struct {
+		Priority int `json:"priority"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	err = h.svc.UpdateServicePriority(c.Context(), id, req.Priority)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Service priority updated successfully",
+	})
+}

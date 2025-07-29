@@ -70,6 +70,15 @@ func (s *ServiceService) DeleteService(ctx context.Context, serviceID int) error
 	return s.repo.DeleteService(ctx, serviceID)
 }
 
+// Priority Management Methods
+func (s *ServiceService) UpdateCategoryPriority(ctx context.Context, categoryID int, priority int) error {
+	return s.repo.UpdateCategoryPriority(ctx, categoryID, priority)
+}
+
+func (s *ServiceService) UpdateServicePriority(ctx context.Context, serviceID int, priority int) error {
+	return s.repo.UpdateServicePriority(ctx, serviceID, priority)
+}
+
 // Helper functions
 func generateOrderNumber() string {
 	timestamp := time.Now().Format("20060102150405")

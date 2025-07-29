@@ -337,3 +337,205 @@ func (r *UserRepository) UpdateUserRole(ctx context.Context, userID, role string
 	utils.LogInfo("User role updated successfully", "userID", userID, "newRole", role)
 	return nil
 }
+
+// GetTotalUsersCount returns the total number of users
+func (r *UserRepository) GetTotalUsersCount(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM users`
+
+	var count int
+	err := r.pool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// GetOrdersStats returns total orders count and total revenue
+func (r *UserRepository) GetOrdersStats(ctx context.Context) (int, float64, error) {
+	query := `SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders`
+
+	var count int
+	var revenue float64
+	err := r.pool.QueryRow(ctx, query).Scan(&count, &revenue)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return count, revenue, nil
+}
+
+// GetPendingOrdersCount returns the count of pending orders
+func (r *UserRepository) GetPendingOrdersCount(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM orders WHERE status IN ('pending_payment', 'processing')`
+
+	var count int
+	err := r.pool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// GetRecentUsers returns the most recent users
+func (r *UserRepository) GetRecentUsers(ctx context.Context, limit int) ([]models.UserResponse, error) {
+	query := `
+		SELECT id, first_name, last_name, email, phone, role, is_email_verified, created_at, updated_at
+		FROM users
+		ORDER BY created_at DESC
+		LIMIT $1`
+
+	rows, err := r.pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.UserResponse
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(
+			&user.ID,
+			&user.FirstName,
+			&user.LastName,
+			&user.Email,
+			&user.Phone,
+			&user.Role,
+			&user.IsEmailVerified,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		userResponse := models.UserResponse{
+			ID:              user.ID,
+			FirstName:       user.FirstName,
+			LastName:        user.LastName,
+			Email:           user.Email,
+			Phone:           user.Phone,
+			Role:            user.Role,
+			IsEmailVerified: user.IsEmailVerified,
+			CreatedAt:       user.CreatedAt,
+			UpdatedAt:       user.UpdatedAt,
+		}
+		users = append(users, userResponse)
+	}
+
+	return users, nil
+}
+
+// GetRecentOrders returns the most recent orders with user information
+func (r *UserRepository) GetRecentOrders(ctx context.Context, limit int) ([]models.RecentOrder, error) {
+	query := `
+		SELECT o.id, o.order_number, o.total_amount, o.status, o.created_at,
+		       u.first_name, u.last_name
+		FROM orders o
+		JOIN users u ON o.user_id = u.id
+		ORDER BY o.created_at DESC
+		LIMIT $1`
+
+	rows, err := r.pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []models.RecentOrder
+	for rows.Next() {
+		var order models.RecentOrder
+		var firstName, lastName string
+		var createdAt time.Time
+
+		err := rows.Scan(
+			&order.ID,
+			&order.OrderNumber,
+			&order.TotalAmount,
+			&order.Status,
+			&createdAt,
+			&firstName,
+			&lastName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		order.CreatedAt = createdAt.Format("2006-01-02 15:04:05")
+		order.UserName = firstName + " " + lastName
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+// GetCurrentMonthUsersCount returns the count of users created in current month
+func (r *UserRepository) GetCurrentMonthUsersCount(ctx context.Context) (int, error) {
+	query := `
+		SELECT COUNT(*) 
+		FROM users 
+		WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+		AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`
+
+	var count int
+	err := r.pool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// GetLastMonthUsersCount returns the count of users created in last month
+func (r *UserRepository) GetLastMonthUsersCount(ctx context.Context) (int, error) {
+	query := `
+		SELECT COUNT(*) 
+		FROM users 
+		WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+		AND created_at < DATE_TRUNC('month', CURRENT_DATE)`
+
+	var count int
+	err := r.pool.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// GetCurrentMonthOrdersStats returns count and revenue for current month orders
+func (r *UserRepository) GetCurrentMonthOrdersStats(ctx context.Context) (int, float64, error) {
+	query := `
+		SELECT COUNT(*), COALESCE(SUM(total_amount), 0) 
+		FROM orders 
+		WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+		AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`
+
+	var count int
+	var revenue float64
+	err := r.pool.QueryRow(ctx, query).Scan(&count, &revenue)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return count, revenue, nil
+}
+
+// GetLastMonthOrdersStats returns count and revenue for last month orders
+func (r *UserRepository) GetLastMonthOrdersStats(ctx context.Context) (int, float64, error) {
+	query := `
+		SELECT COUNT(*), COALESCE(SUM(total_amount), 0) 
+		FROM orders 
+		WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+		AND created_at < DATE_TRUNC('month', CURRENT_DATE)`
+
+	var count int
+	var revenue float64
+	err := r.pool.QueryRow(ctx, query).Scan(&count, &revenue)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return count, revenue, nil
+}

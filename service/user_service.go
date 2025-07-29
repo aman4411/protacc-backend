@@ -308,3 +308,126 @@ func (s *UserService) GetUsersWithFilters(ctx context.Context, page, limit int, 
 func (s *UserService) UpdateUserRole(ctx context.Context, userID, role string) error {
 	return s.repo.UpdateUserRole(ctx, userID, role)
 }
+
+// DashboardStats represents the dashboard statistics response
+type DashboardStats struct {
+	TotalUsers    int                   `json:"total_users"`
+	TotalOrders   int                   `json:"total_orders"`
+	TotalRevenue  float64               `json:"total_revenue"`
+	PendingOrders int                   `json:"pending_orders"`
+	RecentUsers   []models.UserResponse `json:"recent_users"`
+	RecentOrders  []models.RecentOrder  `json:"recent_orders"`
+	UserGrowth    string                `json:"user_growth"`
+	OrderGrowth   string                `json:"order_growth"`
+	RevenueGrowth string                `json:"revenue_growth"`
+}
+
+// GetDashboardStats returns dashboard statistics for admin
+func (s *UserService) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
+	// Get total users count
+	totalUsers, err := s.repo.GetTotalUsersCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users count: %v", err)
+	}
+
+	// Get total orders count and revenue
+	totalOrders, totalRevenue, err := s.repo.GetOrdersStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders stats: %v", err)
+	}
+
+	// Get pending orders count
+	pendingOrders, err := s.repo.GetPendingOrdersCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending orders count: %v", err)
+	}
+
+	// Get recent users (last 5)
+	recentUsers, err := s.repo.GetRecentUsers(ctx, 5)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent users: %v", err)
+	}
+
+	// Get recent orders (last 5)
+	recentOrders, err := s.repo.GetRecentOrders(ctx, 5)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent orders: %v", err)
+	}
+
+	// Get current month stats
+	currentMonthUsers, err := s.repo.GetCurrentMonthUsersCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current month users: %v", err)
+	}
+
+	// Get last month stats
+	lastMonthUsers, err := s.repo.GetLastMonthUsersCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last month users: %v", err)
+	}
+
+	// Get current month orders and revenue
+	currentMonthOrders, currentMonthRevenue, err := s.repo.GetCurrentMonthOrdersStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current month orders stats: %v", err)
+	}
+
+	// Get last month orders and revenue
+	lastMonthOrders, lastMonthRevenue, err := s.repo.GetLastMonthOrdersStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last month orders stats: %v", err)
+	}
+
+	// Calculate percentage changes
+	userGrowth := calculatePercentageChange(lastMonthUsers, currentMonthUsers)
+	orderGrowth := calculatePercentageChange(lastMonthOrders, currentMonthOrders)
+	revenueGrowth := calculatePercentageChangeFloat(lastMonthRevenue, currentMonthRevenue)
+
+	return &DashboardStats{
+		TotalUsers:    totalUsers,
+		TotalOrders:   totalOrders,
+		TotalRevenue:  totalRevenue,
+		PendingOrders: pendingOrders,
+		RecentUsers:   recentUsers,
+		RecentOrders:  recentOrders,
+		UserGrowth:    userGrowth,
+		OrderGrowth:   orderGrowth,
+		RevenueGrowth: revenueGrowth,
+	}, nil
+}
+
+// calculatePercentageChange calculates the percentage change between old and new values
+func calculatePercentageChange(oldValue, newValue int) string {
+	if oldValue == 0 {
+		if newValue > 0 {
+			return "+100%"
+		}
+		return "0%"
+	}
+
+	change := float64(newValue-oldValue) / float64(oldValue) * 100
+	if change > 0 {
+		return fmt.Sprintf("+%.1f%%", change)
+	} else if change < 0 {
+		return fmt.Sprintf("%.1f%%", change)
+	}
+	return "0%"
+}
+
+// calculatePercentageChangeFloat calculates the percentage change for float values
+func calculatePercentageChangeFloat(oldValue, newValue float64) string {
+	if oldValue == 0 {
+		if newValue > 0 {
+			return "+100%"
+		}
+		return "0%"
+	}
+
+	change := (newValue - oldValue) / oldValue * 100
+	if change > 0 {
+		return fmt.Sprintf("+%.1f%%", change)
+	} else if change < 0 {
+		return fmt.Sprintf("%.1f%%", change)
+	}
+	return "0%"
+}

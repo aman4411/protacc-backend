@@ -20,6 +20,7 @@ type ServiceCategory struct {
 	Description string        `json:"description" db:"description"`
 	Icon        string        `json:"icon" db:"icon"`
 	Status      ServiceStatus `json:"status" db:"status"`
+	Priority    int           `json:"priority" db:"priority"`
 	CreatedAt   time.Time     `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
@@ -38,6 +39,7 @@ type Service struct {
 	EstimatedDeliveryDays int              `json:"estimated_delivery_days" db:"estimated_delivery_days"`
 	Icon                  string           `json:"icon" db:"icon"`
 	Status                ServiceStatus    `json:"status" db:"status"`
+	Priority              int              `json:"priority" db:"priority"`
 	CreatedAt             time.Time        `json:"created_at" db:"created_at"`
 	UpdatedAt             time.Time        `json:"updated_at" db:"updated_at"`
 	Category              *ServiceCategory `json:"category,omitempty" db:"-"`
@@ -107,4 +109,14 @@ type OrderStatusHistory struct {
 	CreatedBy *string     `json:"created_by,omitempty" db:"created_by"`
 	CreatedAt time.Time   `json:"created_at" db:"created_at"`
 	User      *User       `json:"user,omitempty" db:"-"`
+}
+
+// RecentOrder represents a simplified order for dashboard
+type RecentOrder struct {
+	ID          int     `json:"id"`
+	OrderNumber string  `json:"order_number"`
+	TotalAmount float64 `json:"total_amount"`
+	Status      string  `json:"status"`
+	CreatedAt   string  `json:"created_at"`
+	UserName    string  `json:"user_name"`
 }
