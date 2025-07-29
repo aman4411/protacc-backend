@@ -69,8 +69,12 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Admin routes
 	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
 	admin.Get("/dashboard/stats", f.UserHandler.GetDashboardStats)
+	// User management
 	admin.Get("/users", f.UserHandler.GetUsers)
-	admin.Put("/users/:userId/role", f.UserHandler.UpdateUserRole)
+	admin.Put("/users/:id/role", f.UserHandler.UpdateUserRole)
+	admin.Get("/users/:userId/orders", f.UserHandler.GetUserOrders)
+
+	// Order management
 	admin.Get("/orders", f.OrderHandler.GetOrders)
 	admin.Put("/orders/:orderId/status", f.OrderHandler.UpdateOrderStatus)
 
@@ -89,6 +93,14 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Priority management
 	admin.Put("/categories/:id/priority", f.ServiceHandler.UpdateCategoryPriority)
 	admin.Put("/services/:id/priority", f.ServiceHandler.UpdateServicePriority)
+
+	// Analytics routes
+	admin.Get("/analytics/revenue", f.AnalyticsHandler.GetRevenueAnalytics)
+	admin.Get("/analytics/orders", f.AnalyticsHandler.GetOrderAnalytics)
+	admin.Get("/analytics/users", f.AnalyticsHandler.GetUserAnalytics)
+	admin.Get("/analytics/services", f.AnalyticsHandler.GetServiceAnalytics)
+	admin.Get("/analytics/metrics", f.AnalyticsHandler.GetOverallMetrics)
+	admin.Get("/analytics/activity", f.AnalyticsHandler.GetRecentActivity)
 
 	// Settings management
 	admin.Get("/settings", f.SettingsHandler.GetAllSettings)

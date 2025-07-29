@@ -9,12 +9,13 @@ import (
 
 // Factories holds all the initialized dependencies
 type Factories struct {
-	UserHandler     *handler.UserHandler
-	ServiceHandler  *handler.ServiceHandler
-	CartHandler     *handler.CartHandler
-	OrderHandler    *handler.OrderHandler
-	PaymentHandler  *handler.PaymentHandler
-	SettingsHandler *handler.SettingsHandler
+	UserHandler      *handler.UserHandler
+	ServiceHandler   *handler.ServiceHandler
+	CartHandler      *handler.CartHandler
+	OrderHandler     *handler.OrderHandler
+	PaymentHandler   *handler.PaymentHandler
+	SettingsHandler  *handler.SettingsHandler
+	AnalyticsHandler *handler.AnalyticsHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -28,6 +29,7 @@ func NewFactories() (*Factories, error) {
 	cartRepo := repository.NewCartRepository(db.Pool)
 	orderRepo := repository.NewOrderRepository(db.Pool)
 	settingsRepo := repository.NewSettingsRepository(db.Pool)
+	analyticsRepo := repository.NewAnalyticsRepository(db.Pool)
 
 	// Initialize services
 	mailService := service.NewMailService()
@@ -37,21 +39,24 @@ func NewFactories() (*Factories, error) {
 	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo)
 	paymentService := service.NewPaymentService(orderRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
+	analyticsService := service.NewAnalyticsService(analyticsRepo)
 
 	// Initialize handlers
-	userHandler := handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService, orderService)
 	serviceHandler := handler.NewServiceHandler(serviceService)
 	cartHandler := handler.NewCartHandler(cartService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	paymentHandler := handler.NewPaymentHandler(paymentService, orderService)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 
 	return &Factories{
-		UserHandler:     userHandler,
-		ServiceHandler:  serviceHandler,
-		CartHandler:     cartHandler,
-		OrderHandler:    orderHandler,
-		PaymentHandler:  paymentHandler,
-		SettingsHandler: settingsHandler,
+		UserHandler:      userHandler,
+		ServiceHandler:   serviceHandler,
+		CartHandler:      cartHandler,
+		OrderHandler:     orderHandler,
+		PaymentHandler:   paymentHandler,
+		SettingsHandler:  settingsHandler,
+		AnalyticsHandler: analyticsHandler,
 	}, nil
 }

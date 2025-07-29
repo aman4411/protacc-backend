@@ -11,14 +11,16 @@ import (
 )
 
 type UserHandler struct {
-	userService *service.UserService
-	validate    *validator.Validate
+	userService  *service.UserService
+	orderService *service.OrderService
+	validate     *validator.Validate
 }
 
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService *service.UserService, orderService *service.OrderService) *UserHandler {
 	return &UserHandler{
-		userService: userService,
-		validate:    validator.New(),
+		userService:  userService,
+		orderService: orderService,
+		validate:     validator.New(),
 	}
 }
 
@@ -257,6 +259,26 @@ func (h *UserHandler) GetDashboardStats(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
-
 	return c.JSON(stats)
+}
+
+// GetUserOrders returns orders for a specific user (admin only)
+func (h *UserHandler) GetUserOrders(c *fiber.Ctx) error {
+	userID := c.Params("userId")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID is required",
+		})
+	}
+
+	orders, err := h.orderService.GetOrders(c.Context(), &userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"orders": orders,
+	})
 }
