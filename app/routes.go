@@ -102,6 +102,13 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Get("/analytics/metrics", f.AnalyticsHandler.GetOverallMetrics)
 	admin.Get("/analytics/activity", f.AnalyticsHandler.GetRecentActivity)
 
+	// Lead management routes (admin only)
+	admin.Get("/leads", f.LeadHandler.GetLeads)
+	admin.Get("/leads/stats", f.LeadHandler.GetLeadStats)
+	admin.Get("/leads/:id", f.LeadHandler.GetLeadByID)
+	admin.Put("/leads/:id", f.LeadHandler.UpdateLead)
+	admin.Delete("/leads/:id", f.LeadHandler.DeleteLead)
+
 	// Settings management
 	admin.Get("/settings", f.SettingsHandler.GetAllSettings)
 	admin.Get("/settings/categories", f.SettingsHandler.GetSettingsByCategory)
@@ -115,6 +122,9 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 
 	// Public settings endpoint (for frontend)
 	api.Get("/settings/public", f.SettingsHandler.GetPublicSettings)
+
+	// Public lead creation endpoint
+	api.Post("/leads", f.LeadHandler.CreateLead)
 
 	app.Get("/ping", func(c *fiber.Ctx) error {
 		return c.SendString("pong")
