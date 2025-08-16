@@ -17,6 +17,7 @@ type Factories struct {
 	SettingsHandler  *handler.SettingsHandler
 	AnalyticsHandler *handler.AnalyticsHandler
 	LeadHandler      *handler.LeadHandler
+	ContactHandler   *handler.ContactHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -32,6 +33,7 @@ func NewFactories() (*Factories, error) {
 	settingsRepo := repository.NewSettingsRepository(db.Pool)
 	analyticsRepo := repository.NewAnalyticsRepository(db.Pool)
 	leadRepo := repository.NewLeadRepository(db.Pool)
+	contactRepo := repository.NewContactRepository(db.Pool)
 
 	// Initialize services
 	mailService := service.NewMailService()
@@ -43,6 +45,7 @@ func NewFactories() (*Factories, error) {
 	settingsService := service.NewSettingsService(settingsRepo)
 	analyticsService := service.NewAnalyticsService(analyticsRepo)
 	leadService := service.NewLeadService(leadRepo)
+	contactService := service.NewContactService(contactRepo)
 
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService, orderService)
@@ -53,6 +56,7 @@ func NewFactories() (*Factories, error) {
 	settingsHandler := handler.NewSettingsHandler(settingsService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 	leadHandler := handler.NewLeadHandler(leadService)
+	contactHandler := handler.NewContactHandler(contactService)
 
 	return &Factories{
 		UserHandler:      userHandler,
@@ -63,5 +67,6 @@ func NewFactories() (*Factories, error) {
 		SettingsHandler:  settingsHandler,
 		AnalyticsHandler: analyticsHandler,
 		LeadHandler:      leadHandler,
+		ContactHandler:   contactHandler,
 	}, nil
 }
