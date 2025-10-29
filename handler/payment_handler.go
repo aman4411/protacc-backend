@@ -43,10 +43,10 @@ func (h *PaymentHandler) CreatePaymentOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if order is already paid
-	if order.PaymentStatus {
+	// Check if order is in a payable state
+	if order.Status != "pending_booking_payment" && order.Status != "pending_final_payment" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Order is already paid",
+			"error": "Order is not in a payable state",
 		})
 	}
 
@@ -73,13 +73,26 @@ func (h *PaymentHandler) CreatePaymentOrder(c *fiber.Ctx) error {
 		})
 	}
 
+	// Calculate payment amount based on order status
+	var paymentAmount float64
+	if order.Status == "pending_booking_payment" {
+		paymentAmount = order.BookingAmount
+	} else if order.Status == "pending_final_payment" {
+		paymentAmount = order.RemainingAmount
+	} else {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Order is not in a payable state",
+		})
+	}
+
 	// Return response with order details needed for frontend
 	return c.JSON(fiber.Map{
 		"razorpay_order_id": razorpayOrderID,
-		"amount":            int(order.BookingAmount * 100), // Amount in paise
+		"amount":            int(paymentAmount * 100), // Amount in paise
 		"currency":          "INR",
 		"order_number":      order.OrderNumber,
 		"order_id":          order.ID,
+		"payment_type":      order.Status, // Include payment type for frontend
 	})
 }
 

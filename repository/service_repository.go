@@ -131,8 +131,8 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 	searchQuery := `
 		SELECT 
 			s.id, s.name, s.slug, s.description, s.price, s.estimated_delivery_days,
-			s.features, s.requirements, s.category_id, s.status, s.created_at, s.updated_at,
-			sc.name as category_name, sc.slug as category_slug
+			s.features, s.requirements, s.category_id, s.status, s.priority, s.created_at, s.updated_at,
+			sc.name as category_name, sc.slug as category_slug, sc.priority as category_priority
 		FROM services s
 		LEFT JOIN service_categories sc ON s.category_id = sc.id
 		WHERE s.status = 'active' 
@@ -148,6 +148,8 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 				WHEN LOWER(s.description) LIKE LOWER($1) THEN 3
 				ELSE 4
 			END,
+			s.priority ASC,
+			sc.priority ASC,
 			s.name`
 
 	searchTerm := "%" + query + "%"
@@ -163,6 +165,7 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 	for rows.Next() {
 		var service models.Service
 		var categoryName, categorySlug sql.NullString
+		var categoryPriority sql.NullInt32
 
 		err := rows.Scan(
 			&service.ID,
@@ -175,10 +178,12 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 			&service.Requirements,
 			&service.CategoryID,
 			&service.Status,
+			&service.Priority,
 			&service.CreatedAt,
 			&service.UpdatedAt,
 			&categoryName,
 			&categorySlug,
+			&categoryPriority,
 		)
 		if err != nil {
 			return nil, err
@@ -187,9 +192,10 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 		// Populate category information if available
 		if categoryName.Valid && categorySlug.Valid {
 			service.Category = &models.ServiceCategory{
-				ID:   service.CategoryID,
-				Name: categoryName.String,
-				Slug: categorySlug.String,
+				ID:       service.CategoryID,
+				Name:     categoryName.String,
+				Slug:     categorySlug.String,
+				Priority: int(categoryPriority.Int32),
 			}
 		}
 
@@ -303,7 +309,7 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 		WHERE s.status = 'active'
 		AND ($1::int IS NULL OR s.category_id = $1)
 		AND ($2::text = '' OR c.slug = $2)
-		ORDER BY c.priority ASC, s.priority ASC, s.name ASC`
+		ORDER BY s.priority ASC, c.priority ASC, s.name ASC`
 
 	rows, err := r.db.Query(ctx, query, categoryID, categorySlug)
 	if err != nil {

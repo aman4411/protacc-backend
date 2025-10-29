@@ -367,7 +367,7 @@ func (r *UserRepository) GetOrdersStats(ctx context.Context) (int, float64, erro
 
 // GetPendingOrdersCount returns the count of pending orders
 func (r *UserRepository) GetPendingOrdersCount(ctx context.Context) (int, error) {
-	query := `SELECT COUNT(*) FROM orders WHERE status IN ('pending_payment', 'processing')`
+	query := `SELECT COUNT(*) FROM orders WHERE status IN ('pending_booking_payment', 'processing')`
 
 	var count int
 	err := r.pool.QueryRow(ctx, query).Scan(&count)

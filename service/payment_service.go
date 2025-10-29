@@ -52,8 +52,18 @@ func (s *PaymentService) CreateRazorpayOrder(ctx context.Context, order *models.
 		return nil, fmt.Errorf("Razorpay client not initialized. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET")
 	}
 
+	// Determine payment amount based on order status
+	var paymentAmount float64
+	if order.Status == models.OrderStatusPendingBookingPayment {
+		paymentAmount = order.BookingAmount
+	} else if order.Status == models.OrderStatusPendingFinalPayment {
+		paymentAmount = order.RemainingAmount
+	} else {
+		return nil, fmt.Errorf("order is not in a payable state: %s", order.Status)
+	}
+
 	// Convert amount to paise (Razorpay expects amount in smallest currency unit)
-	amountInPaise := int(order.BookingAmount * 100)
+	amountInPaise := int(paymentAmount * 100)
 
 	data := map[string]interface{}{
 		"amount":          amountInPaise,
@@ -99,8 +109,18 @@ func (s *PaymentService) HandlePaymentSuccess(ctx context.Context, orderID strin
 		return fmt.Errorf("order not found: %v", err)
 	}
 
+	// Determine the next status based on current status
+	var nextStatus models.OrderStatus
+	if order.Status == models.OrderStatusPendingBookingPayment {
+		nextStatus = models.OrderStatusBookingAmountReceived
+	} else if order.Status == models.OrderStatusPendingFinalPayment {
+		nextStatus = models.OrderStatusFullPaymentReceived
+	} else {
+		return fmt.Errorf("invalid order status for payment: %s", order.Status)
+	}
+
 	// Update order status
-	err = s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, models.OrderStatusPaymentReceived)
+	err = s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, nextStatus)
 	if err != nil {
 		return fmt.Errorf("failed to update order payment status: %v", err)
 	}
@@ -169,7 +189,17 @@ func (s *PaymentService) handlePaymentCaptured(ctx context.Context, payload map[
 		return err
 	}
 
-	return s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, models.OrderStatusPaymentReceived)
+	// Determine the next status based on current status
+	var nextStatus models.OrderStatus
+	if order.Status == models.OrderStatusPendingBookingPayment {
+		nextStatus = models.OrderStatusBookingAmountReceived
+	} else if order.Status == models.OrderStatusPendingFinalPayment {
+		nextStatus = models.OrderStatusFullPaymentReceived
+	} else {
+		return fmt.Errorf("invalid order status for payment: %s", order.Status)
+	}
+
+	return s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, nextStatus)
 }
 
 func (s *PaymentService) handlePaymentFailed(ctx context.Context, payload map[string]interface{}) error {

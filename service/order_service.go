@@ -48,7 +48,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID string, serviceID
 		TotalAmount:     service.Price,
 		BookingAmount:   service.BookingAmount,
 		RemainingAmount: service.Price - service.BookingAmount,
-		Status:          models.OrderStatusPendingPayment,
+		Status:          models.OrderStatusPendingBookingPayment,
 		PaymentStatus:   false,
 		Items:           []models.OrderItem{orderItem},
 	}

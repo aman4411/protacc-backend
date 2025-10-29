@@ -127,7 +127,7 @@ func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID string
 		TotalAmount:     totalAmount,
 		BookingAmount:   totalBookingAmount,
 		RemainingAmount: totalAmount - totalBookingAmount,
-		Status:          models.OrderStatusPendingPayment,
+		Status:          models.OrderStatusPendingBookingPayment,
 		PaymentStatus:   false,
 		Items:           orderItems,
 	}

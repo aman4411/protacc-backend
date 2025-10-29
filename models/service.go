@@ -60,14 +60,16 @@ type CartItem struct {
 type OrderStatus string
 
 const (
-	OrderStatusPendingPayment    OrderStatus = "pending_payment"
-	OrderStatusPaymentReceived   OrderStatus = "payment_received"
-	OrderStatusProcessing        OrderStatus = "processing"
-	OrderStatusDocumentsRequired OrderStatus = "documents_required"
-	OrderStatusDocumentsReceived OrderStatus = "documents_received"
-	OrderStatusInProgress        OrderStatus = "in_progress"
-	OrderStatusCompleted         OrderStatus = "completed"
-	OrderStatusCancelled         OrderStatus = "cancelled"
+	OrderStatusPendingBookingPayment OrderStatus = "pending_booking_payment"
+	OrderStatusBookingAmountReceived OrderStatus = "booking_amount_received"
+	OrderStatusProcessing            OrderStatus = "processing"
+	OrderStatusDocumentsRequired     OrderStatus = "documents_required"
+	OrderStatusDocumentsReceived     OrderStatus = "documents_received"
+	OrderStatusInProgress            OrderStatus = "in_progress"
+	OrderStatusPendingFinalPayment   OrderStatus = "pending_final_payment"
+	OrderStatusFullPaymentReceived   OrderStatus = "full_payment_received"
+	OrderStatusCompleted             OrderStatus = "completed"
+	OrderStatusCancelled             OrderStatus = "cancelled"
 )
 
 type OrderItem struct {
