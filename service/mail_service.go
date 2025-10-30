@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/aman4411/protacc-backend/utils"
 	"io"
 	"net/http"
 	"os"
-
-	"github.com/aman4411/protacc-backend/utils"
+	"regexp"
+	"strings"
+	"time"
 )
 
 type MailService struct {
@@ -19,10 +21,14 @@ type MailService struct {
 }
 
 type resendEmail struct {
-	From    string `json:"from"`
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
+	From    string            `json:"from"`
+	To      string            `json:"to"`
+	Subject string            `json:"subject"`
+	HTML    string            `json:"html"`
+	Text    string            `json:"text,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Tags    []string          `json:"tags,omitempty"`
+	ReplyTo string            `json:"reply_to,omitempty"`
 }
 
 type resendError struct {
@@ -71,11 +77,30 @@ func (s *MailService) sendEmail(to, subject, html string) error {
 		return fmt.Errorf("RESEND_API_KEY is not set")
 	}
 
+	// Create plain text version for better deliverability
+	plainText := s.htmlToPlainText(html)
+
+	// Generate unique message ID
+	messageID := fmt.Sprintf("<%d.%s@protacc.in>", time.Now().UnixNano(), strings.ReplaceAll(to, "@", "."))
+
 	email := resendEmail{
-		From:    fmt.Sprintf("ProtAcc Team <%s>", s.fromEmail),
+		From:    fmt.Sprintf("ProtAcc Support <%s>", s.fromEmail),
 		To:      to,
 		Subject: subject,
 		HTML:    html,
+		Text:    plainText,
+		ReplyTo: s.fromEmail,
+		Headers: map[string]string{
+			"Message-ID":        messageID,
+			"X-Mailer":          "ProtAcc-Email-Service/1.0",
+			"X-Priority":        "3",
+			"X-MSMail-Priority": "Normal",
+			"Importance":        "Normal",
+			"List-Unsubscribe":  "<mailto:unsubscribe@protacc.in>",
+			"Return-Path":       s.fromEmail,
+			"X-Entity-Ref-ID":   fmt.Sprintf("protacc-%d", time.Now().Unix()),
+		},
+		Tags: []string{"transactional", "account-verification"},
 	}
 
 	jsonData, err := json.Marshal(email)
@@ -116,28 +141,215 @@ func (s *MailService) sendEmail(to, subject, html string) error {
 }
 
 func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) error {
-	subject := "Verify your email address"
+	subject := "Verify Your ProtAcc Account - Email Confirmation Required"
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
-		<html>
+		<html lang="en">
 		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Verify Your Email - ProtAcc</title>
 			<style>
-				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-				.container { max-width: 600px; margin: 0 auto; padding: 20px; }
-				.otp { font-size: 32px; font-weight: bold; color: #2563eb; letter-spacing: 2px; }
-				.footer { margin-top: 30px; font-size: 14px; color: #666; }
+				* { margin: 0; padding: 0; box-sizing: border-box; }
+				body { 
+					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+					line-height: 1.6; 
+					color: #374151; 
+					background-color: #f8fafc;
+				}
+				.email-container { 
+					max-width: 600px; 
+					margin: 0 auto; 
+					background-color: #ffffff; 
+					border-radius: 16px; 
+					overflow: hidden; 
+					box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+				}
+				.header { 
+					background: linear-gradient(135deg, #4f46e5 0%%, #7c3aed 100%%); 
+					padding: 40px 30px; 
+					text-align: center; 
+					position: relative;
+					overflow: hidden;
+				}
+				.header::before {
+					content: '';
+					position: absolute;
+					top: 0;
+					left: 0;
+					right: 0;
+					bottom: 0;
+					background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%%23grain)"/></svg>');
+				}
+				.logo { 
+					font-size: 42px; 
+					font-weight: 900; 
+					color: white; 
+					margin-bottom: 8px; 
+					letter-spacing: -1px;
+					position: relative;
+					z-index: 1;
+				}
+				.tagline { 
+					color: rgba(255, 255, 255, 0.9); 
+					font-size: 16px; 
+					font-weight: 500;
+					position: relative;
+					z-index: 1;
+				}
+				.content { 
+					padding: 40px 30px; 
+				}
+				.greeting { 
+					font-size: 24px; 
+					font-weight: 700; 
+					color: #1f2937; 
+					margin-bottom: 16px; 
+				}
+				.message { 
+					font-size: 16px; 
+					color: #6b7280; 
+					margin-bottom: 32px; 
+					line-height: 1.7;
+				}
+				.otp-container { 
+					background: linear-gradient(135deg, #f0f9ff 0%%, #e0e7ff 100%%); 
+					border: 2px solid #e5e7eb; 
+					border-radius: 12px; 
+					padding: 32px; 
+					text-align: center; 
+					margin: 32px 0; 
+					position: relative;
+				}
+				.otp-label { 
+					font-size: 14px; 
+					font-weight: 600; 
+					color: #6366f1; 
+					text-transform: uppercase; 
+					letter-spacing: 1px; 
+					margin-bottom: 12px; 
+				}
+				.otp { 
+					font-size: 36px; 
+					font-weight: 900; 
+					color: #4f46e5; 
+					letter-spacing: 8px; 
+					font-family: 'Courier New', monospace; 
+					background: white; 
+					padding: 16px 24px; 
+					border-radius: 8px; 
+					display: inline-block; 
+					border: 2px solid #e5e7eb;
+					box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+				}
+				.otp-note { 
+					font-size: 14px; 
+					color: #9ca3af; 
+					margin-top: 16px; 
+					font-style: italic; 
+				}
+				.security-note { 
+					background-color: #fef3c7; 
+					border-left: 4px solid #f59e0b; 
+					padding: 16px; 
+					margin: 24px 0; 
+					border-radius: 0 8px 8px 0; 
+				}
+				.security-note p { 
+					font-size: 14px; 
+					color: #92400e; 
+					margin: 0; 
+				}
+				.footer { 
+					background-color: #f9fafb; 
+					padding: 32px 30px; 
+					text-align: center; 
+					border-top: 1px solid #e5e7eb; 
+				}
+				.footer-text { 
+					font-size: 14px; 
+					color: #6b7280; 
+					margin-bottom: 16px; 
+				}
+				.social-links { 
+					margin-top: 20px; 
+				}
+				.social-links a { 
+					display: inline-block; 
+					margin: 0 8px; 
+					color: #6b7280; 
+					text-decoration: none; 
+					font-size: 14px; 
+				}
+				.divider { 
+					height: 1px; 
+					background: linear-gradient(90deg, transparent, #e5e7eb, transparent); 
+					margin: 24px 0; 
+				}
+				@media only screen and (max-width: 600px) {
+					.email-container { margin: 10px; border-radius: 12px; }
+					.header { padding: 30px 20px; }
+					.content { padding: 30px 20px; }
+					.footer { padding: 24px 20px; }
+					.logo { font-size: 36px; }
+					.otp { font-size: 32px; letter-spacing: 6px; padding: 14px 20px; }
+				}
 			</style>
 		</head>
 		<body>
-			<div class="container">
-				<h2>Welcome to ProtAcc!</h2>
-				<p>Hi %s,</p>
-				<p>Thank you for signing up. Please use the following OTP to verify your email address:</p>
-				<p class="otp">%s</p>
-				<p>This OTP will expire in 15 minutes.</p>
-				<p>If you didn't request this verification, please ignore this email.</p>
-				<div class="footer">
-					<p>Best regards,<br>The ProtAcc Team</p>
+			<div style="padding: 20px 0;">
+				<div class="email-container">
+					<!-- Header -->
+					<div class="header">
+						<div class="logo">ProtAcc</div>
+						<div class="tagline">Professional Accounting & Compliance Services</div>
+					</div>
+					
+					<!-- Content -->
+					<div class="content">
+						<div class="greeting">Hi %s,</div>
+						<div class="message">
+							Welcome to ProtAcc! We're excited to have you join our community of entrepreneurs and business owners.
+							<br><br>
+							To complete your account setup and ensure the security of your account, please verify your email address using the verification code below:
+						</div>
+						
+						<!-- OTP Section -->
+						<div class="otp-container">
+							<div class="otp-label">Your Verification Code</div>
+							<div class="otp">%s</div>
+							<div class="otp-note">This code expires in 15 minutes</div>
+						</div>
+						
+						<!-- Security Note -->
+						<div class="security-note">
+							<p><strong>🔒 Security Tip:</strong> Never share this code with anyone. ProtAcc will never ask for your verification code via phone or email.</p>
+						</div>
+						
+						<div class="divider"></div>
+						
+						<div class="message">
+							Once verified, you'll have full access to our comprehensive business services including company registration, tax compliance, and expert consultancy.
+							<br><br>
+							If you didn't create this account, please ignore this email and the account will remain unverified.
+						</div>
+					</div>
+					
+					<!-- Footer -->
+					<div class="footer">
+						<div class="footer-text">
+							<strong>Need help?</strong> Contact our support team at <a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a>
+						</div>
+						<div class="footer-text">
+							Best regards,<br>
+							<strong>The ProtAcc Team</strong>
+						</div>
+						<div class="social-links">
+							<a href="https://protacc.in">Visit Website</a> • 
+							<a href="https://protacc.in/services">Our Services</a> • 
+							<a href="https://protacc.in/contact">Contact Us</a>
+						</div>
+					</div>
 				</div>
 			</div>
 		</body>
@@ -148,35 +360,340 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 }
 
 func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
-	subject := "Welcome to ProtAcc!"
+	subject := "Welcome to ProtAcc - Account Successfully Verified"
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
-		<html>
+		<html lang="en">
 		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Welcome to ProtAcc</title>
 			<style>
-				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-				.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+				* { margin: 0; padding: 0; box-sizing: border-box; }
+				body { 
+					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+					line-height: 1.6; 
+					color: #374151; 
+					background-color: #f8fafc;
+				}
+				.email-container { 
+					max-width: 600px; 
+					margin: 0 auto; 
+					background-color: #ffffff; 
+					border-radius: 16px; 
+					overflow: hidden; 
+					box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+				}
+				.header { 
+					background: linear-gradient(135deg, #4f46e5 0%%, #7c3aed 100%%); 
+					padding: 40px 30px; 
+					text-align: center; 
+					position: relative;
+					overflow: hidden;
+				}
+				.header::before {
+					content: '';
+					position: absolute;
+					top: 0;
+					left: 0;
+					right: 0;
+					bottom: 0;
+					background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%%23grain)"/></svg>');
+				}
+				.logo { 
+					font-size: 42px; 
+					font-weight: 900; 
+					color: white; 
+					margin-bottom: 8px; 
+					letter-spacing: -1px;
+					position: relative;
+					z-index: 1;
+				}
+				.tagline { 
+					color: rgba(255, 255, 255, 0.9); 
+					font-size: 16px; 
+					font-weight: 500;
+					position: relative;
+					z-index: 1;
+				}
+				.success-badge {
+					background: rgba(255, 255, 255, 0.2);
+					color: white;
+					padding: 8px 16px;
+					border-radius: 20px;
+					font-size: 14px;
+					font-weight: 600;
+					margin-top: 16px;
+					display: inline-block;
+					position: relative;
+					z-index: 1;
+				}
+				.content { 
+					padding: 40px 30px; 
+				}
+				.greeting { 
+					font-size: 28px; 
+					font-weight: 700; 
+					color: #1f2937; 
+					margin-bottom: 16px; 
+					text-align: center;
+				}
+				.message { 
+					font-size: 16px; 
+					color: #6b7280; 
+					margin-bottom: 32px; 
+					line-height: 1.7;
+					text-align: center;
+				}
+				.cta-section {
+					text-align: center;
+					margin: 40px 0;
+				}
 				.cta-button { 
 					display: inline-block; 
-					padding: 12px 24px; 
-					background-color: #2563eb; 
-					color: white; 
+					padding: 16px 32px; 
+					background: linear-gradient(135deg, #4f46e5 0%%, #7c3aed 100%%); 
+					color: white !important; 
 					text-decoration: none; 
-					border-radius: 6px; 
-					margin: 20px 0;
+					border-radius: 12px; 
+					font-weight: 600;
+					font-size: 16px;
+					box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+					transition: all 0.3s ease;
 				}
-				.footer { margin-top: 30px; font-size: 14px; color: #666; }
+				.cta-button:hover {
+					transform: translateY(-2px);
+					box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+				}
+				.features-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+					gap: 24px;
+					margin: 40px 0;
+				}
+				.feature-card {
+					background: #f8fafc;
+					padding: 24px;
+					border-radius: 12px;
+					text-align: center;
+					border: 1px solid #e5e7eb;
+				}
+				.feature-icon {
+					font-size: 32px;
+					margin-bottom: 12px;
+				}
+				.feature-title {
+					font-size: 18px;
+					font-weight: 600;
+					color: #1f2937;
+					margin-bottom: 8px;
+				}
+				.feature-desc {
+					font-size: 14px;
+					color: #6b7280;
+					line-height: 1.5;
+				}
+				.stats-section {
+					background: linear-gradient(135deg, #f0f9ff 0%%, #e0e7ff 100%%);
+					padding: 32px;
+					border-radius: 12px;
+					margin: 32px 0;
+					text-align: center;
+				}
+				.stats-grid {
+					display: grid;
+					grid-template-columns: repeat(3, 1fr);
+					gap: 24px;
+					margin-top: 24px;
+				}
+				.stat-item {
+					text-align: center;
+				}
+				.stat-number {
+					font-size: 24px;
+					font-weight: 900;
+					color: #4f46e5;
+					display: block;
+				}
+				.stat-label {
+					font-size: 12px;
+					color: #6b7280;
+					text-transform: uppercase;
+					letter-spacing: 1px;
+					margin-top: 4px;
+				}
+				.next-steps {
+					background: #fef3c7;
+					border-left: 4px solid #f59e0b;
+					padding: 24px;
+					margin: 32px 0;
+					border-radius: 0 12px 12px 0;
+				}
+				.next-steps h3 {
+					color: #92400e;
+					font-size: 18px;
+					font-weight: 600;
+					margin-bottom: 12px;
+				}
+				.next-steps ul {
+					list-style: none;
+					padding: 0;
+				}
+				.next-steps li {
+					color: #92400e;
+					font-size: 14px;
+					margin-bottom: 8px;
+					padding-left: 20px;
+					position: relative;
+				}
+				.next-steps li::before {
+					content: '✓';
+					position: absolute;
+					left: 0;
+					color: #f59e0b;
+					font-weight: bold;
+				}
+				.footer { 
+					background-color: #f9fafb; 
+					padding: 32px 30px; 
+					text-align: center; 
+					border-top: 1px solid #e5e7eb; 
+				}
+				.footer-text { 
+					font-size: 14px; 
+					color: #6b7280; 
+					margin-bottom: 16px; 
+				}
+				.social-links { 
+					margin-top: 20px; 
+				}
+				.social-links a { 
+					display: inline-block; 
+					margin: 0 8px; 
+					color: #6b7280; 
+					text-decoration: none; 
+					font-size: 14px; 
+				}
+				.divider { 
+					height: 1px; 
+					background: linear-gradient(90deg, transparent, #e5e7eb, transparent); 
+					margin: 32px 0; 
+				}
+				@media only screen and (max-width: 600px) {
+					.email-container { margin: 10px; border-radius: 12px; }
+					.header { padding: 30px 20px; }
+					.content { padding: 30px 20px; }
+					.footer { padding: 24px 20px; }
+					.logo { font-size: 36px; }
+					.greeting { font-size: 24px; }
+					.features-grid { grid-template-columns: 1fr; }
+					.stats-grid { grid-template-columns: 1fr; gap: 16px; }
+					.cta-button { padding: 14px 28px; font-size: 15px; }
+				}
 			</style>
 		</head>
 		<body>
-			<div class="container">
-				<h2>Welcome to ProtAcc!</h2>
-				<p>Hi %s,</p>
-				<p>Thank you for verifying your email address. Your account is now active and you can start using our services.</p>
-				<a href="https://protacc.netlify.app/services" class="cta-button">Explore Our Services</a>
-				<p>If you have any questions or need assistance, feel free to contact our support team.</p>
-				<div class="footer">
-					<p>Best regards,<br>The ProtAcc Team</p>
+			<div style="padding: 20px 0;">
+				<div class="email-container">
+					<!-- Header -->
+					<div class="header">
+						<div class="logo">ProtAcc</div>
+						<div class="tagline">Professional Accounting & Compliance Services</div>
+						<div class="success-badge">✅ Account Verified Successfully</div>
+					</div>
+					
+					<!-- Content -->
+					<div class="content">
+						<div class="greeting">Welcome, %s!</div>
+						<div class="message">
+							Congratulations! Your email has been verified and your ProtAcc account is now fully active. 
+							You're now part of a community of successful entrepreneurs and business owners who trust us with their compliance needs.
+						</div>
+						
+						<!-- CTA Section -->
+						<div class="cta-section">
+							<a href="https://protacc.in/services" class="cta-button">Explore Our Services</a>
+						</div>
+						
+						<!-- Stats Section -->
+						<div class="stats-section">
+							<h3 style="color: #1f2937; font-size: 20px; font-weight: 600; margin-bottom: 8px;">Join 1,500+ Happy Clients</h3>
+							<p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">Trusted by businesses across India</p>
+							<div class="stats-grid">
+								<div class="stat-item">
+									<span class="stat-number">1,500+</span>
+									<span class="stat-label">Happy Clients</span>
+								</div>
+								<div class="stat-item">
+									<span class="stat-number">50+</span>
+									<span class="stat-label">Services</span>
+								</div>
+								<div class="stat-item">
+									<span class="stat-number">99.8%%</span>
+									<span class="stat-label">Success Rate</span>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Features Grid -->
+						<div class="features-grid">
+							<div class="feature-card">
+								<div class="feature-icon">🏢</div>
+								<div class="feature-title">Business Registration</div>
+								<div class="feature-desc">Complete company registration services for all entity types</div>
+							</div>
+							<div class="feature-card">
+								<div class="feature-icon">📊</div>
+								<div class="feature-title">Tax Compliance</div>
+								<div class="feature-desc">GST, Income Tax, and all compliance services</div>
+							</div>
+							<div class="feature-card">
+								<div class="feature-icon">💼</div>
+								<div class="feature-title">Expert Consultancy</div>
+								<div class="feature-desc">Professional business advice and strategy</div>
+							</div>
+						</div>
+						
+						<!-- Next Steps -->
+						<div class="next-steps">
+							<h3>🎯 What's Next?</h3>
+							<ul>
+								<li>Browse our comprehensive service catalog</li>
+								<li>Book a free consultation with our experts</li>
+								<li>Get instant quotes for your business needs</li>
+								<li>Track your orders and documents in real-time</li>
+							</ul>
+						</div>
+						
+						<div class="divider"></div>
+						
+						<div class="message">
+							Our team of certified professionals is ready to help you navigate the complex world of business compliance. 
+							Whether you need company registration, tax filing, or expert consultancy, we've got you covered.
+							<br><br>
+							<strong>Need immediate assistance?</strong> Our support team is just a message away!
+						</div>
+					</div>
+					
+					<!-- Footer -->
+					<div class="footer">
+						<div class="footer-text">
+							<strong>Questions? We're here to help!</strong><br>
+							📧 <a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a> | 
+							📞 <a href="tel:+919876543210" style="color: #4f46e5;">+91 98765 43210</a>
+						</div>
+						<div class="footer-text">
+							Best regards,<br>
+							<strong>The ProtAcc Team</strong><br>
+							<em>Your trusted compliance partner</em>
+						</div>
+						<div class="social-links">
+							<a href="https://protacc.in">🌐 Visit Website</a> • 
+							<a href="https://protacc.in/services">🛍️ Our Services</a> • 
+							<a href="https://protacc.in/consultancy">💡 Get Consultation</a> • 
+							<a href="https://protacc.in/contact">📞 Contact Us</a>
+						</div>
+					</div>
 				</div>
 			</div>
 		</body>
@@ -184,4 +701,49 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 	`, firstName)
 
 	return s.sendEmail(toEmail, subject, html)
+}
+
+// htmlToPlainText converts HTML email to plain text for better deliverability
+func (s *MailService) htmlToPlainText(html string) string {
+	// Simple HTML to text conversion for better spam filtering
+	text := html
+
+	// Remove style and script tags completely
+	text = regexp.MustCompile(`(?i)<(style|script)[^>]*>.*?</\1>`).ReplaceAllString(text, "")
+
+	// Convert common HTML elements to text equivalents
+	text = regexp.MustCompile(`(?i)<br[^>]*>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)<p[^>]*>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)</p>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)<div[^>]*>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)</div>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)<h[1-6][^>]*>`).ReplaceAllString(text, "\n")
+	text = regexp.MustCompile(`(?i)</h[1-6]>`).ReplaceAllString(text, "\n")
+
+	// Convert links to readable format
+	text = regexp.MustCompile(`(?i)<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>`).ReplaceAllString(text, "$2 ($1)")
+
+	// Remove all remaining HTML tags
+	text = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(text, "")
+
+	// Replace HTML entities
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&hellip;", "...")
+
+	// Clean up whitespace and formatting
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	text = regexp.MustCompile(`\n\s*\n`).ReplaceAllString(text, "\n\n")
+	text = strings.TrimSpace(text)
+
+	// Add some structure for readability
+	text = strings.ReplaceAll(text, "ProtAcc", "\n=== ProtAcc ===")
+	text = strings.ReplaceAll(text, "Your Verification Code", "\n--- Your Verification Code ---")
+	text = strings.ReplaceAll(text, "Welcome aboard", "\n=== Welcome aboard")
+
+	return text
 }
