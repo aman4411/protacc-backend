@@ -150,6 +150,12 @@ func (h *OrderHandler) GetOrderStatusHistory(c *fiber.Ctx) error {
 		})
 	}
 
+	userID := getOrderUserID(c)
+	role := getOrderRole(c)
+	if err := h.docSvc.EnsureOrderAccess(c.Context(), orderID, userID, role); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Order not found"})
+	}
+
 	history, err := h.svc.GetOrderStatusHistory(c.Context(), orderID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -186,7 +192,7 @@ func (h *OrderHandler) GetOrderDocuments(c *fiber.Ctx) error {
 	docs, err := h.docSvc.ListDocuments(c.Context(), orderID, userID, role)
 	if err != nil {
 		if err.Error() == "access denied" || err.Error() == "order not found" {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Order not found"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -211,6 +217,9 @@ func (h *OrderHandler) AddUserOrderDocument(c *fiber.Ctx) error {
 	userID := getOrderUserID(c)
 	doc, err := h.docSvc.AddUserDocument(c.Context(), orderID, userID, &req)
 	if err != nil {
+		if err.Error() == "access denied" || err.Error() == "order not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Order not found"})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 

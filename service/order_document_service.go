@@ -126,6 +126,10 @@ func (s *OrderDocumentService) AddAdminDocument(ctx context.Context, orderID int
 	return doc, nil
 }
 
+func (s *OrderDocumentService) EnsureOrderAccess(ctx context.Context, orderID int, userID, role string) error {
+	return s.ensureOrderAccess(ctx, orderID, userID, role)
+}
+
 func (s *OrderDocumentService) ensureOrderAccess(ctx context.Context, orderID int, userID, role string) error {
 	if role == "admin" {
 		_, err := s.docRepo.GetOrderOwnerID(ctx, orderID)
