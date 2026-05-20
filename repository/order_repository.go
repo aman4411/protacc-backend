@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aman4411/protacc-backend/models"
+	"github.com/aman4411/protacc-backend/utils"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -510,12 +511,27 @@ func (r *OrderRepository) UpdateOrderPaymentStatus(ctx context.Context, orderID 
 	}
 	defer tx.Rollback(ctx)
 
-	// Update order payment status
-	updateQuery := `UPDATE orders 
-	                SET payment_status = $1, razorpay_payment_id = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
-	                WHERE id = $4`
+	// Update order payment status and remaining amount if full payment is completed
+	var updateQuery string
+	var args []interface{}
 
-	_, err = tx.Exec(ctx, updateQuery, paymentStatus, razorpayPaymentID, newStatus, orderID)
+	if newStatus == models.OrderStatusFullPaymentReceived {
+		// When full payment is received, set remaining_amount to 0
+		utils.LogInfo("Setting remaining_amount to 0 for full payment", "orderID", orderID, "status", newStatus)
+		updateQuery = `UPDATE orders 
+		               SET payment_status = $1, razorpay_payment_id = $2, status = $3, remaining_amount = 0, updated_at = CURRENT_TIMESTAMP 
+		               WHERE id = $4`
+		args = []interface{}{paymentStatus, razorpayPaymentID, newStatus, orderID}
+	} else {
+		// For other status updates, don't change remaining_amount
+		utils.LogInfo("Updating order status without changing remaining_amount", "orderID", orderID, "status", newStatus)
+		updateQuery = `UPDATE orders 
+		               SET payment_status = $1, razorpay_payment_id = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
+		               WHERE id = $4`
+		args = []interface{}{paymentStatus, razorpayPaymentID, newStatus, orderID}
+	}
+
+	_, err = tx.Exec(ctx, updateQuery, args...)
 	if err != nil {
 		return err
 	}

@@ -50,3 +50,22 @@ type AuthResponse struct {
 	Token string       `json:"token"`
 	User  UserResponse `json:"user"`
 }
+
+// UpdateProfileRequest represents profile update data (email cannot be changed)
+type UpdateProfileRequest struct {
+	FirstName string `json:"firstName" validate:"required,min=2"`
+	LastName  string `json:"lastName" validate:"required,min=2"`
+	Phone     string `json:"phone" validate:"required,len=10"`
+}
+
+// ForgotPasswordRequest represents a password reset request by email
+type ForgotPasswordRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+// ResetPasswordRequest represents setting a new password via reset token
+type ResetPasswordRequest struct {
+	Token           string `json:"token" validate:"required"`
+	Password        string `json:"password" validate:"required,min=6"`
+	ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=Password"`
+}

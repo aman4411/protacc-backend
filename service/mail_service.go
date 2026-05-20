@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/aman4411/protacc-backend/utils"
 	"io"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
-	"time"
 )
 
 type MailService struct {
@@ -20,14 +18,19 @@ type MailService struct {
 	env       string
 }
 
+type resendEmailTag struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type resendEmail struct {
 	From    string            `json:"from"`
-	To      string            `json:"to"`
+	To      []string          `json:"to"`
 	Subject string            `json:"subject"`
 	HTML    string            `json:"html"`
 	Text    string            `json:"text,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
-	Tags    []string          `json:"tags,omitempty"`
+	Tags    []resendEmailTag  `json:"tags,omitempty"`
 	ReplyTo string            `json:"reply_to,omitempty"`
 }
 
@@ -49,9 +52,9 @@ func NewMailService() *MailService {
 	if apiKey == "" && env != "dev" {
 		fmt.Println("WARNING: RESEND_API_KEY is not set")
 	}
+	fromEmail = strings.TrimSpace(fromEmail)
 	if fromEmail == "" {
-		fmt.Println("WARNING: FROM_EMAIL is not set")
-		// Set a default sender domain from Resend
+		fmt.Println("WARNING: FROM_EMAIL is not set, using onboarding@resend.dev")
 		fromEmail = "onboarding@resend.dev"
 	}
 
@@ -65,13 +68,13 @@ func NewMailService() *MailService {
 
 func (s *MailService) sendEmail(to, subject, html string) error {
 	// In development, just log the email instead of sending it
-	if s.env == "dev" {
-		utils.LogInfo("Email not sent (development mode)",
-			"to", to,
-			"subject", subject,
-			"content", html)
-		return nil
-	}
+	//if s.env == "dev" {
+	//	utils.LogInfo("Email not sent (development mode)",
+	//		"to", to,
+	//		"subject", subject,
+	//		"content", html)
+	//	return nil
+	//}
 
 	if s.apiKey == "" {
 		return fmt.Errorf("RESEND_API_KEY is not set")
@@ -80,27 +83,16 @@ func (s *MailService) sendEmail(to, subject, html string) error {
 	// Create plain text version for better deliverability
 	plainText := s.htmlToPlainText(html)
 
-	// Generate unique message ID
-	messageID := fmt.Sprintf("<%d.%s@protacc.in>", time.Now().UnixNano(), strings.ReplaceAll(to, "@", "."))
-
 	email := resendEmail{
 		From:    fmt.Sprintf("ProtAcc Support <%s>", s.fromEmail),
-		To:      to,
+		To:      []string{strings.TrimSpace(to)},
 		Subject: subject,
 		HTML:    html,
 		Text:    plainText,
 		ReplyTo: s.fromEmail,
-		Headers: map[string]string{
-			"Message-ID":        messageID,
-			"X-Mailer":          "ProtAcc-Email-Service/1.0",
-			"X-Priority":        "3",
-			"X-MSMail-Priority": "Normal",
-			"Importance":        "Normal",
-			"List-Unsubscribe":  "<mailto:unsubscribe@protacc.in>",
-			"Return-Path":       s.fromEmail,
-			"X-Entity-Ref-ID":   fmt.Sprintf("protacc-%d", time.Now().Unix()),
+		Tags: []resendEmailTag{
+			{Name: "category", Value: "transactional"},
 		},
-		Tags: []string{"transactional", "account-verification"},
 	}
 
 	jsonData, err := json.Marshal(email)
@@ -703,13 +695,66 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 	return s.sendEmail(toEmail, subject, html)
 }
 
+func (s *MailService) SendPasswordResetEmail(toEmail, firstName, resetLink string) error {
+	subject := "Reset Your ProtAcc Password"
+	html := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Reset Password - ProtAcc</title>
+			<style>
+				body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #374151; background-color: #f8fafc; margin: 0; padding: 20px; }
+				.email-container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+				.header { background: linear-gradient(135deg, #4f46e5 0%%, #7c3aed 100%%); padding: 40px 30px; text-align: center; }
+				.logo { font-size: 36px; font-weight: 900; color: white; }
+				.content { padding: 40px 30px; }
+				.greeting { font-size: 22px; font-weight: 700; color: #1f2937; margin-bottom: 16px; }
+				.message { font-size: 16px; color: #6b7280; margin-bottom: 24px; }
+				.cta-button { display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4f46e5 0%%, #7c3aed 100%%); color: white !important; text-decoration: none; border-radius: 10px; font-weight: 600; }
+				.note { font-size: 14px; color: #9ca3af; margin-top: 24px; }
+				.footer { background: #f9fafb; padding: 24px 30px; text-align: center; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+			</style>
+		</head>
+		<body>
+			<div class="email-container">
+				<div class="header"><div class="logo">ProtAcc</div></div>
+				<div class="content">
+					<div class="greeting">Hi %s,</div>
+					<div class="message">
+						We received a request to reset your ProtAcc account password.
+						Click the button below to choose a new password. This link expires in 1 hour.
+					</div>
+					<p style="text-align: center; margin: 32px 0;">
+						<a href="%s" class="cta-button">Reset Password</a>
+					</p>
+					<p class="note">
+						If you did not request a password reset, you can safely ignore this email.
+						Your password will remain unchanged.
+					</p>
+					<p class="note" style="word-break: break-all;">Or copy this link: %s</p>
+				</div>
+				<div class="footer">
+					<strong>The ProtAcc Team</strong><br>
+					<a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a>
+				</div>
+			</div>
+		</body>
+		</html>
+	`, firstName, resetLink, resetLink)
+
+	return s.sendEmail(toEmail, subject, html)
+}
+
 // htmlToPlainText converts HTML email to plain text for better deliverability
 func (s *MailService) htmlToPlainText(html string) string {
 	// Simple HTML to text conversion for better spam filtering
 	text := html
 
-	// Remove style and script tags completely
-	text = regexp.MustCompile(`(?i)<(style|script)[^>]*>.*?</\1>`).ReplaceAllString(text, "")
+	// Remove style and script tags completely (Go regexp has no backreferences)
+	text = regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`).ReplaceAllString(text, "")
+	text = regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`).ReplaceAllString(text, "")
 
 	// Convert common HTML elements to text equivalents
 	text = regexp.MustCompile(`(?i)<br[^>]*>`).ReplaceAllString(text, "\n")

@@ -25,10 +25,15 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	auth.Post("/signup", f.UserHandler.Signup)
 	auth.Post("/login", f.UserHandler.Login)
 	auth.Post("/verify-email", f.UserHandler.VerifyEmail)
+	auth.Post("/forgot-password", f.UserHandler.ForgotPassword)
+	auth.Post("/reset-password", f.UserHandler.ResetPassword)
+	auth.Get("/reset-password/validate", f.UserHandler.ValidateResetToken)
 
 	// Protected routes
 	user := api.Group("/user", middleware.Protected())
 	user.Get("/profile", f.UserHandler.GetProfile)
+	user.Put("/profile", f.UserHandler.UpdateProfile)
+	user.Post("/change-password-request", f.UserHandler.RequestPasswordReset)
 
 	// Service routes
 	services := api.Group("/services")

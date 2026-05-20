@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/aman4411/protacc-backend/models"
@@ -294,6 +296,7 @@ func (s *UserService) GetUsersWithFilters(ctx context.Context, page, limit int, 
 			FirstName:       user.FirstName,
 			LastName:        user.LastName,
 			Email:           user.Email,
+			Phone:           user.Phone,
 			Role:            user.Role,
 			IsEmailVerified: user.IsEmailVerified,
 			CreatedAt:       user.CreatedAt,
@@ -307,6 +310,123 @@ func (s *UserService) GetUsersWithFilters(ctx context.Context, page, limit int, 
 // UpdateUserRole updates a user's role
 func (s *UserService) UpdateUserRole(ctx context.Context, userID, role string) error {
 	return s.repo.UpdateUserRole(ctx, userID, role)
+}
+
+func (s *UserService) UpdateProfile(ctx context.Context, userID string, req *models.UpdateProfileRequest) (*models.UserResponse, error) {
+	if err := s.repo.UpdateUserProfile(ctx, userID, req.FirstName, req.LastName, req.Phone); err != nil {
+		return nil, err
+	}
+	return s.GetUserByID(ctx, userID)
+}
+
+func generateResetToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func getFrontendURL() string {
+	if url := os.Getenv("FRONTEND_URL"); url != "" {
+		return url
+	}
+	return "http://localhost:3000"
+}
+
+func (s *UserService) sendPasswordResetEmail(ctx context.Context, email string) error {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		// Do not reveal whether the email exists
+		utils.LogInfo("Password reset requested for unknown email", "email", email)
+		return nil
+	}
+
+	token, err := generateResetToken()
+	if err != nil {
+		return fmt.Errorf("error generating reset token: %v", err)
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := s.repo.InvalidatePasswordResetTokens(ctx, tx, user.ID); err != nil {
+		return err
+	}
+
+	expiresAt := time.Now().Add(1 * time.Hour)
+	if err := s.repo.CreatePasswordResetToken(ctx, tx, user.ID, token, expiresAt); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", getFrontendURL(), token)
+	if err := s.mail.SendPasswordResetEmail(user.Email, user.FirstName, resetLink); err != nil {
+		return fmt.Errorf("error sending password reset email: %v", err)
+	}
+
+	return nil
+}
+
+// RequestPasswordReset sends a reset link to the given email (public endpoint)
+func (s *UserService) RequestPasswordReset(ctx context.Context, email string) error {
+	return s.sendPasswordResetEmail(ctx, email)
+}
+
+// RequestPasswordResetForUser sends a reset link to the authenticated user's email
+func (s *UserService) RequestPasswordResetForUser(ctx context.Context, userID string) error {
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.sendPasswordResetEmail(ctx, user.Email)
+}
+
+func (s *UserService) ResetPassword(ctx context.Context, req *models.ResetPasswordRequest) error {
+	if err := ValidatePassword(req.Password, req.ConfirmPassword); err != nil {
+		return err
+	}
+
+	reset, err := s.repo.GetPasswordResetByToken(ctx, req.Token)
+	if err != nil {
+		return err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("error hashing password: %v", err)
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := s.repo.UpdateUserPasswordTx(ctx, tx, reset.UserID, string(hashedPassword)); err != nil {
+		return err
+	}
+
+	if err := s.repo.MarkPasswordResetUsed(ctx, tx, reset.ID); err != nil {
+		return err
+	}
+
+	if err := s.repo.InvalidatePasswordResetTokens(ctx, tx, reset.UserID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (s *UserService) ValidateResetToken(ctx context.Context, token string) error {
+	_, err := s.repo.GetPasswordResetByToken(ctx, token)
+	return err
 }
 
 // DashboardStats represents the dashboard statistics response

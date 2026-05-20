@@ -8,3 +8,7 @@ UPDATE order_status_history SET status = 'payment_received' WHERE status = 'book
 
 -- Revert default status
 ALTER TABLE orders ALTER COLUMN status SET DEFAULT 'pending_payment';
+
+
+
+

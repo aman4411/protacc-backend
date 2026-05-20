@@ -162,6 +162,119 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
+// UpdateProfile updates the authenticated user's profile (email cannot be changed)
+func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
+	userID := c.Locals("userId").(string)
+
+	var req models.UpdateProfileRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request format",
+		})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Validation failed",
+			"details": err.Error(),
+		})
+	}
+
+	user, err := h.userService.UpdateProfile(c.Context(), userID, &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(user)
+}
+
+// RequestPasswordReset sends a password reset email to the authenticated user
+func (h *UserHandler) RequestPasswordReset(c *fiber.Ctx) error {
+	userID := c.Locals("userId").(string)
+
+	if err := h.userService.RequestPasswordResetForUser(c.Context(), userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Password reset link has been sent to your email address",
+	})
+}
+
+// ForgotPassword sends a password reset email (public, does not reveal if email exists)
+func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
+	var req models.ForgotPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request format",
+		})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Validation failed",
+			"details": err.Error(),
+		})
+	}
+
+	_ = h.userService.RequestPasswordReset(c.Context(), req.Email)
+
+	return c.JSON(fiber.Map{
+		"message": "If an account exists with this email, a password reset link has been sent",
+	})
+}
+
+// ResetPassword sets a new password using a valid reset token
+func (h *UserHandler) ResetPassword(c *fiber.Ctx) error {
+	var req models.ResetPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request format",
+		})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Validation failed",
+			"details": err.Error(),
+		})
+	}
+
+	if err := h.userService.ResetPassword(c.Context(), &req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Password updated successfully. Please log in with your new password.",
+	})
+}
+
+// ValidateResetToken checks if a password reset token is valid
+func (h *UserHandler) ValidateResetToken(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Token is required",
+		})
+	}
+
+	if err := h.userService.ValidateResetToken(c.Context(), token); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid or expired reset link",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"valid": true,
+	})
+}
+
 // GetUsers returns all users with filtering and pagination (admin only)
 func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	// Parse query parameters

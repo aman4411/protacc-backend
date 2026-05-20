@@ -241,10 +241,6 @@ func (r *UserRepository) GetUsersWithFilters(ctx context.Context, page, limit in
 		FROM users 
 		WHERE 1=1`
 
-	countQuery := "SELECT COUNT(*) " + baseQuery
-	selectQuery := `
-		SELECT id, first_name, last_name, email, role, is_email_verified, created_at, updated_at ` + baseQuery
-
 	args := []interface{}{}
 	argIndex := 1
 
@@ -271,9 +267,9 @@ func (r *UserRepository) GetUsersWithFilters(ctx context.Context, page, limit in
 	}
 
 	// Update queries with filters
-	countQuery = "SELECT COUNT(*) " + baseQuery
-	selectQuery = `
-		SELECT id, first_name, last_name, email, role, is_email_verified, created_at, updated_at ` + baseQuery +
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	selectQuery := `
+		SELECT id, first_name, last_name, email, phone, role, is_email_verified, created_at, updated_at ` + baseQuery +
 		fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 
 	args = append(args, limit, offset)
@@ -302,6 +298,7 @@ func (r *UserRepository) GetUsersWithFilters(ctx context.Context, page, limit in
 			&user.FirstName,
 			&user.LastName,
 			&user.Email,
+			&user.Phone,
 			&user.Role,
 			&user.IsEmailVerified,
 			&user.CreatedAt,
@@ -538,4 +535,100 @@ func (r *UserRepository) GetLastMonthOrdersStats(ctx context.Context) (int, floa
 	}
 
 	return count, revenue, nil
+}
+
+func (r *UserRepository) UpdateUserProfile(ctx context.Context, userID, firstName, lastName, phone string) error {
+	result, err := r.pool.Exec(ctx, `
+		UPDATE users
+		SET first_name = $1, last_name = $2, phone = $3, updated_at = NOW()
+		WHERE id = $4
+	`, firstName, lastName, phone, userID)
+	if err != nil {
+		return fmt.Errorf("error updating profile: %v", err)
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUserPassword(ctx context.Context, userID, passwordHash string) error {
+	result, err := r.pool.Exec(ctx, `
+		UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2
+	`, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("error updating password: %v", err)
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUserPasswordTx(ctx context.Context, tx pgx.Tx, userID, passwordHash string) error {
+	result, err := tx.Exec(ctx, `
+		UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2
+	`, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("error updating password: %v", err)
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+func (r *UserRepository) InvalidatePasswordResetTokens(ctx context.Context, tx pgx.Tx, userID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE password_reset_tokens SET used_at = NOW()
+		WHERE user_id = $1 AND used_at IS NULL
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("error invalidating reset tokens: %v", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) CreatePasswordResetToken(ctx context.Context, tx pgx.Tx, userID, token string, expiresAt time.Time) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+		VALUES ($1, $2, $3, NOW())
+	`, userID, token, expiresAt)
+	if err != nil {
+		return fmt.Errorf("error creating password reset token: %v", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) GetPasswordResetByToken(ctx context.Context, token string) (*models.PasswordResetToken, error) {
+	var reset models.PasswordResetToken
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, user_id, token, expires_at, used_at, created_at
+		FROM password_reset_tokens
+		WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL
+	`, token).Scan(
+		&reset.ID,
+		&reset.UserID,
+		&reset.Token,
+		&reset.ExpiresAt,
+		&reset.UsedAt,
+		&reset.CreatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, errors.New("invalid or expired reset link")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error getting reset token: %v", err)
+	}
+	return &reset, nil
+}
+
+func (r *UserRepository) MarkPasswordResetUsed(ctx context.Context, tx pgx.Tx, tokenID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1
+	`, tokenID)
+	if err != nil {
+		return fmt.Errorf("error marking reset token used: %v", err)
+	}
+	return nil
 }

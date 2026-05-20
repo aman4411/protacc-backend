@@ -12,3 +12,4 @@ ALTER TABLE orders ALTER COLUMN status SET DEFAULT 'pending_payment';
 -- Note: PostgreSQL doesn't support removing enum values directly
 -- This would require recreating the enum type, which is complex
 -- For now, the new enum values will remain but won't be used
+
