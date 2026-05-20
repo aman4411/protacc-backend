@@ -5,15 +5,25 @@ import (
 
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/service"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 )
 
 type OrderHandler struct {
-	svc *service.OrderService
+	svc      *service.OrderService
+	docSvc   *service.OrderDocumentService
+	validate *validator.Validate
 }
 
-func NewOrderHandler(svc *service.OrderService) *OrderHandler {
-	return &OrderHandler{svc: svc}
+func NewOrderHandler(svc *service.OrderService, docSvc *service.OrderDocumentService) *OrderHandler {
+	return &OrderHandler{svc: svc, docSvc: docSvc, validate: validator.New()}
+}
+
+func getOrderRole(c *fiber.Ctx) string {
+	if role, ok := c.Locals("role").(string); ok {
+		return role
+	}
+	return "user"
 }
 
 // Helper function to get user ID from context
@@ -162,4 +172,72 @@ func (h *OrderHandler) GetOrderByNumber(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(order)
+}
+
+func (h *OrderHandler) GetOrderDocuments(c *fiber.Ctx) error {
+	orderID, err := strconv.Atoi(c.Params("orderId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid order ID"})
+	}
+
+	userID := getOrderUserID(c)
+	role := getOrderRole(c)
+
+	docs, err := h.docSvc.ListDocuments(c.Context(), orderID, userID, role)
+	if err != nil {
+		if err.Error() == "access denied" || err.Error() == "order not found" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(h.docSvc.EnrichDocuments(docs))
+}
+
+func (h *OrderHandler) AddUserOrderDocument(c *fiber.Ctx) error {
+	orderID, err := strconv.Atoi(c.Params("orderId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid order ID"})
+	}
+
+	var req models.AddOrderDocumentRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request format"})
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Validation failed", "details": err.Error()})
+	}
+
+	userID := getOrderUserID(c)
+	doc, err := h.docSvc.AddUserDocument(c.Context(), orderID, userID, &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	enriched := h.docSvc.EnrichDocuments([]models.OrderDocument{*doc})
+	return c.Status(fiber.StatusCreated).JSON(enriched[0])
+}
+
+func (h *OrderHandler) AddAdminOrderDocument(c *fiber.Ctx) error {
+	orderID, err := strconv.Atoi(c.Params("orderId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid order ID"})
+	}
+
+	var req models.AddOrderDocumentRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request format"})
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Validation failed", "details": err.Error()})
+	}
+
+	adminID := getOrderUserID(c)
+	doc, err := h.docSvc.AddAdminDocument(c.Context(), orderID, adminID, &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	enriched := h.docSvc.EnrichDocuments([]models.OrderDocument{*doc})
+	return c.Status(fiber.StatusCreated).JSON(enriched[0])
 }
