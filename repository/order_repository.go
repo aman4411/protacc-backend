@@ -395,13 +395,26 @@ func (r *OrderRepository) UpdateOrderStatus(ctx context.Context, orderID int, st
 	}
 	defer tx.Rollback(ctx)
 
-	// Update order status
-	updateQuery := `
-		UPDATE orders 
-		SET status = $1, notes = $2, updated_at = NOW()
-		WHERE id = $3`
+	// Update order status; clear remaining balance when payment is fully received or order is completed
+	var updateQuery string
+	var args []interface{}
 
-	_, err = tx.Exec(ctx, updateQuery, status, notes, orderID)
+	switch status {
+	case models.OrderStatusFullPaymentReceived, models.OrderStatusCompleted:
+		updateQuery = `
+			UPDATE orders
+			SET status = $1, notes = $2, remaining_amount = 0, payment_status = true, updated_at = NOW()
+			WHERE id = $3`
+		args = []interface{}{status, notes, orderID}
+	default:
+		updateQuery = `
+			UPDATE orders
+			SET status = $1, notes = $2, updated_at = NOW()
+			WHERE id = $3`
+		args = []interface{}{status, notes, orderID}
+	}
+
+	_, err = tx.Exec(ctx, updateQuery, args...)
 	if err != nil {
 		return err
 	}

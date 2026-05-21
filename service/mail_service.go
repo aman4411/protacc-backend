@@ -330,7 +330,7 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 					<!-- Footer -->
 					<div class="footer">
 						<div class="footer-text">
-							<strong>Need help?</strong> Contact our support team at <a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a>
+							<strong>Need help?</strong> Contact our support team at <a href="mailto:info@protacc.in" style="color: #4f46e5;">info@protacc.in</a>
 						</div>
 						<div class="footer-text">
 							Best regards,<br>
@@ -671,8 +671,8 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 					<div class="footer">
 						<div class="footer-text">
 							<strong>Questions? We're here to help!</strong><br>
-							📧 <a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a> | 
-							📞 <a href="tel:+919876543210" style="color: #4f46e5;">+91 98765 43210</a>
+							📧 <a href="mailto:info@protacc.in" style="color: #4f46e5;">info@protacc.in</a> | 
+							📞 <a href="tel:+919034819324" style="color: #4f46e5;">+91 9034819324</a>
 						</div>
 						<div class="footer-text">
 							Best regards,<br>
@@ -737,7 +737,7 @@ func (s *MailService) SendPasswordResetEmail(toEmail, firstName, resetLink strin
 				</div>
 				<div class="footer">
 					<strong>The ProtAcc Team</strong><br>
-					<a href="mailto:support@protacc.in" style="color: #4f46e5;">support@protacc.in</a>
+					<a href="mailto:info@protacc.in" style="color: #4f46e5;">info@protacc.in</a>
 				</div>
 			</div>
 		</body>
