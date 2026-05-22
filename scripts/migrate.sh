@@ -2,12 +2,15 @@
 
 # Check if command is provided
 if [ -z "$1" ]; then
-    echo "Usage: ./migrate.sh [up|down|create|force]"
+    echo "Usage: ./migrate.sh [up|down|create|force] [database_url]"
+    echo "  Optional second argument overrides DATABASE_URL from .env"
     exit 1
 fi
 
-# Load environment variables
-if [ -f .env ]; then
+# Optional explicit database URL (e.g. Neon production branch)
+if [ -n "$2" ]; then
+    DATABASE_URL="$2"
+elif [ -f .env ]; then
     set -a
     source .env
     set +a
