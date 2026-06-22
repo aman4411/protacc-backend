@@ -78,7 +78,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Get("/dashboard/stats", f.UserHandler.GetDashboardStats)
 	// User management
 	admin.Get("/users", f.UserHandler.GetUsers)
-	admin.Put("/users/:id/role", f.UserHandler.UpdateUserRole)
+	admin.Put("/users/:userId/role", f.UserHandler.UpdateUserRole)
 	admin.Get("/users/:userId/orders", f.UserHandler.GetUserOrders)
 
 	// Order management
