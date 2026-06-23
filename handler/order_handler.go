@@ -81,14 +81,19 @@ func (h *OrderHandler) GetOrders(c *fiber.Ctx) error {
 
 	var userID *string
 
-	// Check if user is admin
 	currentUserID := getOrderUserID(c)
+	isAdmin := getOrderRole(c) == "admin"
 
-	// If user is admin, they can see all orders or filter by user_id
-	if userIDParam != "" {
-		userID = &userIDParam
+	if isAdmin {
+		// Admins see all orders by default, or a single user's orders when a
+		// user_id filter is supplied.
+		if userIDParam != "" {
+			userID = &userIDParam
+		}
+		// userID stays nil -> repository returns all orders.
 	} else {
-		// Regular users can only see their own orders
+		// Regular users can only ever see their own orders (ignore any
+		// user_id query param they may try to pass).
 		userID = &currentUserID
 	}
 

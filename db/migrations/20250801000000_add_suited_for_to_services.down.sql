@@ -1,0 +1,1 @@
+ALTER TABLE services DROP COLUMN IF EXISTS suited_for;

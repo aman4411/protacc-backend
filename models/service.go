@@ -34,6 +34,8 @@ type Service struct {
 	ShortDescription      string           `json:"short_description" db:"short_description"`
 	Features              []string         `json:"features" db:"features"`
 	Requirements          []string         `json:"requirements" db:"requirements"`
+	SuitedFor             []string         `json:"suited_for" db:"suited_for"`
+	WhatsIncluded         []string         `json:"whats_included" db:"whats_included"`
 	Price                 float64          `json:"price" db:"price"`
 	BookingAmount         float64          `json:"booking_amount" db:"booking_amount"`
 	EstimatedDeliveryDays int              `json:"estimated_delivery_days" db:"estimated_delivery_days"`
