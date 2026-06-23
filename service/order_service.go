@@ -10,17 +10,42 @@ import (
 )
 
 type OrderService struct {
-	orderRepo   *repository.OrderRepository
-	serviceRepo *repository.ServiceRepository
-	cartRepo    *repository.CartRepository
+	orderRepo     *repository.OrderRepository
+	serviceRepo   *repository.ServiceRepository
+	cartRepo      *repository.CartRepository
+	couponService *CouponService
 }
 
-func NewOrderService(orderRepo *repository.OrderRepository, serviceRepo *repository.ServiceRepository, cartRepo *repository.CartRepository) *OrderService {
+func NewOrderService(orderRepo *repository.OrderRepository, serviceRepo *repository.ServiceRepository, cartRepo *repository.CartRepository, couponService *CouponService) *OrderService {
 	return &OrderService{
-		orderRepo:   orderRepo,
-		serviceRepo: serviceRepo,
-		cartRepo:    cartRepo,
+		orderRepo:     orderRepo,
+		serviceRepo:   serviceRepo,
+		cartRepo:      cartRepo,
+		couponService: couponService,
 	}
+}
+
+// PreviewCoupon validates a coupon against the user's current cart and returns
+// the resulting amount breakdown (without creating an order).
+func (s *OrderService) PreviewCoupon(ctx context.Context, userID, code string) (models.DiscountedAmounts, *models.Coupon, error) {
+	lines, err := s.orderRepo.GetCartLines(ctx, userID)
+	if err != nil {
+		return models.DiscountedAmounts{}, nil, err
+	}
+	if len(lines) == 0 {
+		return models.DiscountedAmounts{}, nil, fmt.Errorf("your cart is empty")
+	}
+	var subtotal, bookingBase float64
+	for _, l := range lines {
+		subtotal += l.Price
+		bookingBase += l.BookingAmount
+	}
+	coupon, discount, err := s.couponService.Validate(ctx, code, userID, lines)
+	if err != nil {
+		return models.DiscountedAmounts{}, nil, err
+	}
+	amounts := models.ComputeDiscountedAmounts(subtotal, bookingBase, discount, coupon.ApplicationMode)
+	return amounts, coupon, nil
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, userID string, serviceID int) (*models.Order, error) {
@@ -64,8 +89,26 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID string, serviceID
 	return order, nil
 }
 
-func (s *OrderService) CreateOrderFromCart(ctx context.Context, userID string) (*models.Order, error) {
-	return s.orderRepo.CreateOrderFromCart(ctx, userID)
+func (s *OrderService) CreateOrderFromCart(ctx context.Context, userID, couponCode string) (*models.Order, error) {
+	discount := 0.0
+	mode := models.CouponModeFinal
+	normalizedCode := ""
+
+	if couponCode != "" {
+		lines, err := s.orderRepo.GetCartLines(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		coupon, d, err := s.couponService.Validate(ctx, couponCode, userID, lines)
+		if err != nil {
+			return nil, err
+		}
+		discount = d
+		mode = coupon.ApplicationMode
+		normalizedCode = coupon.Code
+	}
+
+	return s.orderRepo.CreateOrderFromCart(ctx, userID, normalizedCode, discount, mode)
 }
 
 func (s *OrderService) GetOrders(ctx context.Context, userID *string) ([]models.Order, error) {

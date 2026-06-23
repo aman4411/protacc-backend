@@ -19,6 +19,7 @@ type Factories struct {
 	LeadHandler      *handler.LeadHandler
 	ContactHandler   *handler.ContactHandler
 	ReviewHandler    *handler.ReviewHandler
+	CouponHandler    *handler.CouponHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -37,13 +38,15 @@ func NewFactories() (*Factories, error) {
 	leadRepo := repository.NewLeadRepository(db.Pool)
 	contactRepo := repository.NewContactRepository(db.Pool)
 	reviewRepo := repository.NewReviewRepository(db.Pool)
+	couponRepo := repository.NewCouponRepository(db.Pool)
 
 	// Initialize services
 	mailService := service.NewMailService()
 	userService := service.NewUserService(userRepo, mailService)
 	serviceService := service.NewServiceService(serviceRepo)
 	cartService := service.NewCartService(cartRepo)
-	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo)
+	couponService := service.NewCouponService(couponRepo)
+	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo, couponService)
 	orderDocumentService := service.NewOrderDocumentService(orderDocumentRepo, orderRepo)
 	paymentService := service.NewPaymentService(orderRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
@@ -63,6 +66,7 @@ func NewFactories() (*Factories, error) {
 	leadHandler := handler.NewLeadHandler(leadService)
 	contactHandler := handler.NewContactHandler(contactService)
 	reviewHandler := handler.NewReviewHandler(reviewService)
+	couponHandler := handler.NewCouponHandler(couponService)
 
 	return &Factories{
 		UserHandler:      userHandler,
@@ -75,5 +79,6 @@ func NewFactories() (*Factories, error) {
 		LeadHandler:      leadHandler,
 		ContactHandler:   contactHandler,
 		ReviewHandler:    reviewHandler,
+		CouponHandler:    couponHandler,
 	}, nil
 }

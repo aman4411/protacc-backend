@@ -69,7 +69,47 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	return tx.Commit(ctx)
 }
 
-func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID string) (*models.Order, error) {
+// GetCartSummary returns the cart subtotal (sum of prices) and base booking
+// amount (sum of booking amounts) for a user's active cart items.
+func (r *OrderRepository) GetCartSummary(ctx context.Context, userID string) (float64, float64, error) {
+	query := `
+		SELECT COALESCE(SUM(s.price), 0), COALESCE(SUM(s.booking_amount), 0)
+		FROM cart_items ci
+		JOIN services s ON ci.service_id = s.id
+		WHERE ci.user_id = $1 AND s.status = 'active'`
+	var subtotal, bookingBase float64
+	if err := r.db.QueryRow(ctx, query, userID).Scan(&subtotal, &bookingBase); err != nil {
+		return 0, 0, err
+	}
+	return subtotal, bookingBase, nil
+}
+
+// GetCartLines returns the user's active cart items with category info, used
+// for coupon eligibility checks.
+func (r *OrderRepository) GetCartLines(ctx context.Context, userID string) ([]models.CartLine, error) {
+	query := `
+		SELECT ci.service_id, s.category_id, s.price, s.booking_amount
+		FROM cart_items ci
+		JOIN services s ON ci.service_id = s.id
+		WHERE ci.user_id = $1 AND s.status = 'active'`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	lines := []models.CartLine{}
+	for rows.Next() {
+		var l models.CartLine
+		if err := rows.Scan(&l.ServiceID, &l.CategoryID, &l.Price, &l.BookingAmount); err != nil {
+			return nil, err
+		}
+		lines = append(lines, l)
+	}
+	return lines, nil
+}
+
+func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID, couponCode string, discount float64, mode models.CouponApplicationMode) (*models.Order, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -121,13 +161,23 @@ func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID string
 	// Generate order number
 	orderNumber := fmt.Sprintf("ORD%s", time.Now().Format("20060102150405"))
 
+	// Apply the coupon discount, splitting it across booking/final per the mode.
+	amounts := models.ComputeDiscountedAmounts(totalAmount, totalBookingAmount, discount, mode)
+
+	var couponPtr *string
+	if couponCode != "" && amounts.DiscountAmount > 0 {
+		couponPtr = &couponCode
+	}
+
 	// Create order
 	order := &models.Order{
 		UserID:          userID,
 		OrderNumber:     orderNumber,
-		TotalAmount:     totalAmount,
-		BookingAmount:   totalBookingAmount,
-		RemainingAmount: totalAmount - totalBookingAmount,
+		TotalAmount:     amounts.TotalAmount,
+		BookingAmount:   amounts.BookingAmount,
+		RemainingAmount: amounts.RemainingAmount,
+		CouponCode:      couponPtr,
+		DiscountAmount:  amounts.DiscountAmount,
 		Status:          models.OrderStatusPendingBookingPayment,
 		PaymentStatus:   false,
 		Items:           orderItems,
@@ -135,8 +185,8 @@ func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID string
 
 	// Insert order
 	orderQuery := `
-		INSERT INTO orders (user_id, order_number, total_amount, booking_amount, remaining_amount, status, payment_status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO orders (user_id, order_number, total_amount, booking_amount, remaining_amount, coupon_code, discount_amount, status, payment_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at`
 
 	err = tx.QueryRow(ctx, orderQuery,
@@ -145,6 +195,8 @@ func (r *OrderRepository) CreateOrderFromCart(ctx context.Context, userID string
 		order.TotalAmount,
 		order.BookingAmount,
 		order.RemainingAmount,
+		order.CouponCode,
+		order.DiscountAmount,
 		order.Status,
 		order.PaymentStatus,
 	).Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)

@@ -51,12 +51,37 @@ func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(order)
 }
 
+// PreviewCoupon validates a coupon against the user's cart and returns the
+// resulting discount breakdown (no order created).
+func (h *OrderHandler) PreviewCoupon(c *fiber.Ctx) error {
+	userID := getOrderUserID(c)
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Coupon code is required"})
+	}
+	amounts, coupon, err := h.svc.PreviewCoupon(c.Context(), userID, req.Code)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{
+		"amounts": amounts,
+		"coupon":  fiber.Map{"code": coupon.Code, "description": coupon.Description},
+	})
+}
+
 func (h *OrderHandler) CreateOrderFromCart(c *fiber.Ctx) error {
 	userID := getOrderUserID(c)
 
-	order, err := h.svc.CreateOrderFromCart(c.Context(), userID)
+	var req struct {
+		CouponCode string `json:"coupon_code"`
+	}
+	_ = c.BodyParser(&req) // body is optional (no coupon)
+
+	order, err := h.svc.CreateOrderFromCart(c.Context(), userID, req.CouponCode)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}

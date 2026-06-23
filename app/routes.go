@@ -47,6 +47,11 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// Public reviews
 	api.Get("/reviews/top", f.ReviewHandler.GetTopReviews)
 
+	// Public: coupons flagged to show on the cart
+	api.Get("/coupons/available", f.CouponHandler.ListAvailable)
+	// Public: coupons flagged for the homepage campaign banner
+	api.Get("/coupons/promotions", f.CouponHandler.ListHomepage)
+
 	// Protected review actions
 	reviews := api.Group("/reviews", middleware.Protected())
 	reviews.Post("/", f.ReviewHandler.SubmitReview)
@@ -68,6 +73,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	orders.Get("/", f.OrderHandler.GetOrders)
 	orders.Get("/number/:orderNumber", f.OrderHandler.GetOrderByNumber) // Get order by number
 	orders.Post("/", f.OrderHandler.CreateOrderFromCart)                // New route for cart-based orders
+	orders.Post("/coupon/preview", f.OrderHandler.PreviewCoupon)        // Validate a coupon against the cart
 	orders.Post("/services/:serviceId", f.OrderHandler.CreateOrder)     // Single service orders
 	orders.Get("/:orderId/history", f.OrderHandler.GetOrderStatusHistory)
 	orders.Get("/:orderId/documents", f.OrderHandler.GetOrderDocuments)
@@ -101,6 +107,12 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/services", f.ServiceHandler.CreateService)
 	admin.Put("/services/:id", f.ServiceHandler.UpdateService)
 	admin.Delete("/services/:id", f.ServiceHandler.DeleteService)
+
+	// Coupon management
+	admin.Get("/coupons", f.CouponHandler.ListCoupons)
+	admin.Post("/coupons", f.CouponHandler.CreateCoupon)
+	admin.Put("/coupons/:id", f.CouponHandler.UpdateCoupon)
+	admin.Delete("/coupons/:id", f.CouponHandler.DeleteCoupon)
 
 	// Review management
 	admin.Get("/reviews", f.ReviewHandler.ListReviews)

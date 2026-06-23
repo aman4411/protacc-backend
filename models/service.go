@@ -99,6 +99,8 @@ type Order struct {
 	TotalAmount       float64     `json:"total_amount" db:"total_amount"`
 	BookingAmount     float64     `json:"booking_amount" db:"booking_amount"`
 	RemainingAmount   float64     `json:"remaining_amount" db:"remaining_amount"`
+	CouponCode        *string     `json:"coupon_code,omitempty" db:"coupon_code"`
+	DiscountAmount    float64     `json:"discount_amount" db:"discount_amount"`
 	Status            OrderStatus `json:"status" db:"status"`
 	PaymentStatus     bool        `json:"payment_status" db:"payment_status"`
 	RazorpayOrderID   *string     `json:"razorpay_order_id,omitempty" db:"razorpay_order_id"`
