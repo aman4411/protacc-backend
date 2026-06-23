@@ -51,6 +51,8 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	api.Get("/coupons/available", f.CouponHandler.ListAvailable)
 	// Public: coupons flagged for the homepage campaign banner
 	api.Get("/coupons/promotions", f.CouponHandler.ListHomepage)
+	// Public: upcoming tax/compliance deadlines for the homepage
+	api.Get("/deadlines/upcoming", f.DeadlineHandler.ListUpcoming)
 
 	// Protected review actions
 	reviews := api.Group("/reviews", middleware.Protected())
@@ -107,6 +109,12 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/services", f.ServiceHandler.CreateService)
 	admin.Put("/services/:id", f.ServiceHandler.UpdateService)
 	admin.Delete("/services/:id", f.ServiceHandler.DeleteService)
+
+	// Deadline management
+	admin.Get("/deadlines", f.DeadlineHandler.List)
+	admin.Post("/deadlines", f.DeadlineHandler.Create)
+	admin.Put("/deadlines/:id", f.DeadlineHandler.Update)
+	admin.Delete("/deadlines/:id", f.DeadlineHandler.Delete)
 
 	// Coupon management
 	admin.Get("/coupons", f.CouponHandler.ListCoupons)
