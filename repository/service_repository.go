@@ -310,7 +310,9 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 			s.short_description, s.features, s.requirements, s.suited_for, s.whats_included, s.price,
 			s.booking_amount, s.estimated_delivery_days, s.icon, s.status, s.priority,
 			s.created_at, s.updated_at,
-			c.id, c.name, c.slug, c.description, c.icon, c.status, c.priority
+			c.id, c.name, c.slug, c.description, c.icon, c.status, c.priority,
+			COALESCE((SELECT AVG(rating) FROM reviews WHERE service_id = s.id AND status = 'published'), 0) AS avg_rating,
+			COALESCE((SELECT COUNT(*) FROM reviews WHERE service_id = s.id AND status = 'published'), 0) AS review_count
 		FROM services s
 		JOIN service_categories c ON s.category_id = c.id
 		WHERE s.status = 'active'
@@ -355,6 +357,8 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 			&service.Category.Icon,
 			&service.Category.Status,
 			&service.Category.Priority,
+			&service.AvgRating,
+			&service.ReviewCount,
 		)
 		if err != nil {
 			return nil, err

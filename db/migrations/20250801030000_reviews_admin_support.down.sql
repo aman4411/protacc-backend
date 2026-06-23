@@ -1,0 +1,3 @@
+DELETE FROM reviews WHERE user_id IS NULL;
+ALTER TABLE reviews DROP COLUMN IF EXISTS reviewer_name;
+ALTER TABLE reviews ALTER COLUMN user_id SET NOT NULL;

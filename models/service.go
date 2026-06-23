@@ -45,6 +45,10 @@ type Service struct {
 	CreatedAt             time.Time        `json:"created_at" db:"created_at"`
 	UpdatedAt             time.Time        `json:"updated_at" db:"updated_at"`
 	Category              *ServiceCategory `json:"category,omitempty" db:"-"`
+
+	// Aggregate rating (populated by list queries; zero when no reviews).
+	AvgRating   float64 `json:"avg_rating" db:"-"`
+	ReviewCount int     `json:"review_count" db:"-"`
 }
 
 func (s *Service) GenerateSlug() {

@@ -41,7 +41,16 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	services.Get("/categories", f.ServiceHandler.GetServiceCategories)
 	services.Get("/search", f.ServiceHandler.SearchServices)
 	services.Get("/slug/:slug", f.ServiceHandler.GetServiceBySlug)
+	services.Get("/:id/reviews", f.ReviewHandler.GetServiceReviews)
 	services.Get("/:id", f.ServiceHandler.GetServiceByID)
+
+	// Public reviews
+	api.Get("/reviews/top", f.ReviewHandler.GetTopReviews)
+
+	// Protected review actions
+	reviews := api.Group("/reviews", middleware.Protected())
+	reviews.Post("/", f.ReviewHandler.SubmitReview)
+	reviews.Get("/eligibility", f.ReviewHandler.GetEligibility)
 
 	// Protected service routes
 	protectedServices := api.Group("/services", middleware.Protected())
@@ -92,6 +101,12 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/services", f.ServiceHandler.CreateService)
 	admin.Put("/services/:id", f.ServiceHandler.UpdateService)
 	admin.Delete("/services/:id", f.ServiceHandler.DeleteService)
+
+	// Review management
+	admin.Get("/reviews", f.ReviewHandler.ListReviews)
+	admin.Post("/reviews", f.ReviewHandler.AdminCreateReview)
+	admin.Put("/reviews/:id/status", f.ReviewHandler.UpdateReviewStatus)
+	admin.Delete("/reviews/:id", f.ReviewHandler.DeleteReview)
 
 	// Category management
 	admin.Get("/categories", f.ServiceHandler.GetServiceCategories)
