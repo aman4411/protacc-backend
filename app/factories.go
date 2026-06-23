@@ -21,6 +21,7 @@ type Factories struct {
 	ReviewHandler    *handler.ReviewHandler
 	CouponHandler    *handler.CouponHandler
 	DeadlineHandler  *handler.DeadlineHandler
+	PostHandler      *handler.PostHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -41,6 +42,7 @@ func NewFactories() (*Factories, error) {
 	reviewRepo := repository.NewReviewRepository(db.Pool)
 	couponRepo := repository.NewCouponRepository(db.Pool)
 	deadlineRepo := repository.NewDeadlineRepository(db.Pool)
+	postRepo := repository.NewPostRepository(db.Pool)
 
 	// Initialize services
 	mailService := service.NewMailService()
@@ -49,6 +51,7 @@ func NewFactories() (*Factories, error) {
 	cartService := service.NewCartService(cartRepo)
 	couponService := service.NewCouponService(couponRepo)
 	deadlineService := service.NewDeadlineService(deadlineRepo)
+	postService := service.NewPostService(postRepo)
 	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo, couponService)
 	orderDocumentService := service.NewOrderDocumentService(orderDocumentRepo, orderRepo)
 	paymentService := service.NewPaymentService(orderRepo)
@@ -71,6 +74,7 @@ func NewFactories() (*Factories, error) {
 	reviewHandler := handler.NewReviewHandler(reviewService)
 	couponHandler := handler.NewCouponHandler(couponService)
 	deadlineHandler := handler.NewDeadlineHandler(deadlineService)
+	postHandler := handler.NewPostHandler(postService)
 
 	return &Factories{
 		UserHandler:      userHandler,
@@ -85,5 +89,6 @@ func NewFactories() (*Factories, error) {
 		ReviewHandler:    reviewHandler,
 		CouponHandler:    couponHandler,
 		DeadlineHandler:  deadlineHandler,
+		PostHandler:      postHandler,
 	}, nil
 }

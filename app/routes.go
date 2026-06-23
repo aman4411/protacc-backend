@@ -53,6 +53,11 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	api.Get("/coupons/promotions", f.CouponHandler.ListHomepage)
 	// Public: upcoming tax/compliance deadlines for the homepage
 	api.Get("/deadlines/upcoming", f.DeadlineHandler.ListUpcoming)
+	// Public: blog posts
+	api.Get("/posts", f.PostHandler.ListPublished)
+	api.Get("/posts/categories", f.PostHandler.ListCategories)
+	api.Get("/posts/:slug/related", f.PostHandler.GetRelated)
+	api.Get("/posts/:slug", f.PostHandler.GetBySlug)
 
 	// Protected review actions
 	reviews := api.Group("/reviews", middleware.Protected())
@@ -109,6 +114,13 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/services", f.ServiceHandler.CreateService)
 	admin.Put("/services/:id", f.ServiceHandler.UpdateService)
 	admin.Delete("/services/:id", f.ServiceHandler.DeleteService)
+
+	// Blog management
+	admin.Get("/posts", f.PostHandler.ListAll)
+	admin.Post("/posts", f.PostHandler.Create)
+	admin.Get("/posts/:id", f.PostHandler.GetByID)
+	admin.Put("/posts/:id", f.PostHandler.Update)
+	admin.Delete("/posts/:id", f.PostHandler.Delete)
 
 	// Deadline management
 	admin.Get("/deadlines", f.DeadlineHandler.List)

@@ -1,0 +1,1 @@
+ALTER TABLE posts ALTER COLUMN cover_image TYPE VARCHAR(500);
