@@ -89,13 +89,12 @@ func (h *OrderHandler) CreateOrderFromCart(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(order)
 }
 
-func (h *OrderHandler) GetOrders(c *fiber.Ctx) error {
-	// Parse query parameters for admin filtering
+// ordersResponse runs the filtered query and writes the standard paginated JSON.
+func (h *OrderHandler) ordersResponse(c *fiber.Ctx, userID *string) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
 	status := c.Query("status", "")
 	search := c.Query("search", "")
-	userIDParam := c.Query("user_id", "")
 
 	if page < 1 {
 		page = 1
@@ -104,29 +103,9 @@ func (h *OrderHandler) GetOrders(c *fiber.Ctx) error {
 		limit = 10
 	}
 
-	var userID *string
-
-	currentUserID := getOrderUserID(c)
-	isAdmin := getOrderRole(c) == "admin"
-
-	if isAdmin {
-		// Admins see all orders by default, or a single user's orders when a
-		// user_id filter is supplied.
-		if userIDParam != "" {
-			userID = &userIDParam
-		}
-		// userID stays nil -> repository returns all orders.
-	} else {
-		// Regular users can only ever see their own orders (ignore any
-		// user_id query param they may try to pass).
-		userID = &currentUserID
-	}
-
 	orders, total, err := h.svc.GetOrdersWithFilters(c.Context(), userID, page, limit, status, search)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
@@ -138,6 +117,24 @@ func (h *OrderHandler) GetOrders(c *fiber.Ctx) error {
 			"total_pages":  (total + limit - 1) / limit,
 		},
 	})
+}
+
+// GetOrders returns the authenticated user's own orders (user route). It always
+// scopes to the current user, regardless of role — so an admin viewing their
+// own profile sees only their orders.
+func (h *OrderHandler) GetOrders(c *fiber.Ctx) error {
+	currentUserID := getOrderUserID(c)
+	return h.ordersResponse(c, &currentUserID)
+}
+
+// GetAdminOrders returns all orders (admin route, role-gated), optionally
+// filtered to a single user via ?user_id.
+func (h *OrderHandler) GetAdminOrders(c *fiber.Ctx) error {
+	var userID *string
+	if uid := c.Query("user_id", ""); uid != "" {
+		userID = &uid
+	}
+	return h.ordersResponse(c, userID)
 }
 
 func (h *OrderHandler) UpdateOrderStatus(c *fiber.Ctx) error {

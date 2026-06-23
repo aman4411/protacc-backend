@@ -99,7 +99,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Get("/users/:userId/orders", f.UserHandler.GetUserOrders)
 
 	// Order management
-	admin.Get("/orders", f.OrderHandler.GetOrders)
+	admin.Get("/orders", f.OrderHandler.GetAdminOrders)
 	admin.Put("/orders/:orderId/status", f.OrderHandler.UpdateOrderStatus)
 	admin.Get("/orders/:orderId/documents", f.OrderHandler.GetOrderDocuments)
 	admin.Post("/orders/:orderId/documents", f.OrderHandler.AddAdminOrderDocument)
