@@ -256,10 +256,21 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 
 	query := `
 		UPDATE services 
-		SET category_id = $1, name = $2, slug = $3, description = $4, short_description = $5,
+		SET category_id = $1, name = $2, slug = $3::text, description = $4, short_description = $5,
 			features = $6, requirements = $7, price = $8, booking_amount = $9,
 			estimated_delivery_days = $10, icon = $11, status = $12, priority = $13,
-			suited_for = $14, whats_included = $15, updated_at = NOW()
+			suited_for = $14, whats_included = $15,
+			previous_slugs = (
+				SELECT ARRAY(
+					SELECT DISTINCT s2
+					FROM unnest(
+						COALESCE(previous_slugs, ARRAY[]::text[])
+						|| CASE WHEN slug::text <> $3::text THEN ARRAY[slug::text] ELSE ARRAY[]::text[] END
+					) AS s2
+					WHERE s2 <> $3::text AND s2 <> ''
+				)
+			),
+			updated_at = NOW()
 		WHERE id = $16
 		RETURNING created_at, updated_at`
 
@@ -418,11 +429,11 @@ func (r *ServiceRepository) GetServiceBySlug(ctx context.Context, slug string) (
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.suited_for, s.whats_included, s.price,
 			s.booking_amount, s.estimated_delivery_days, s.icon, s.status,
-			s.created_at, s.updated_at,
+			s.created_at, s.updated_at, s.previous_slugs,
 			c.id, c.name, c.slug, c.description, c.icon, c.status
 		FROM services s
 		JOIN service_categories c ON s.category_id = c.id
-		WHERE s.slug = $1 AND s.status = 'active'`
+		WHERE (s.slug = $1 OR $1 = ANY(s.previous_slugs)) AND s.status = 'active'`
 
 	service := &models.Service{Category: &models.ServiceCategory{}}
 	err := r.db.QueryRow(ctx, query, slug).Scan(
@@ -443,6 +454,7 @@ func (r *ServiceRepository) GetServiceBySlug(ctx context.Context, slug string) (
 		&service.Status,
 		&service.CreatedAt,
 		&service.UpdatedAt,
+		&service.PreviousSlugs,
 		&service.Category.ID,
 		&service.Category.Name,
 		&service.Category.Slug,

@@ -49,6 +49,9 @@ type Service struct {
 	// Aggregate rating (populated by list queries; zero when no reviews).
 	AvgRating   float64 `json:"avg_rating" db:"-"`
 	ReviewCount int     `json:"review_count" db:"-"`
+
+	// Old slugs that should redirect to the current one (populated by slug lookup).
+	PreviousSlugs []string `json:"previous_slugs,omitempty" db:"-"`
 }
 
 func (s *Service) GenerateSlug() {
