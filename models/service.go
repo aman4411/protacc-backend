@@ -41,6 +41,7 @@ type Service struct {
 	MinDeliveryDays       int              `json:"min_delivery_days" db:"min_delivery_days"`
 	MaxDeliveryDays       int              `json:"max_delivery_days" db:"max_delivery_days"`
 	FlashNote             string           `json:"flash_note" db:"flash_note"`
+	PriceType             string           `json:"price_type" db:"price_type"`
 	Icon                  string           `json:"icon" db:"icon"`
 	Status                ServiceStatus    `json:"status" db:"status"`
 	Priority              int              `json:"priority" db:"priority"`
