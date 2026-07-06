@@ -103,7 +103,7 @@ func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.
 	}
 	defer rows.Close()
 
-	var categories []models.ServiceCategory
+	categories := []models.ServiceCategory{}
 	for rows.Next() {
 		var category models.ServiceCategory
 		err := rows.Scan(
@@ -130,7 +130,7 @@ func (r *ServiceRepository) GetServiceCategories(ctx context.Context) ([]models.
 func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([]models.Service, error) {
 	searchQuery := `
 		SELECT 
-			s.id, s.name, s.slug, s.description, s.price, s.estimated_delivery_days,
+			s.id, s.name, s.slug, s.description, s.price, s.min_delivery_days, s.max_delivery_days,
 			s.features, s.requirements, s.suited_for, s.whats_included, s.category_id, s.status, s.priority, s.created_at, s.updated_at,
 			sc.name as category_name, sc.slug as category_slug, sc.priority as category_priority
 		FROM services s
@@ -161,7 +161,7 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 	}
 	defer rows.Close()
 
-	var services []models.Service
+	services := []models.Service{}
 	for rows.Next() {
 		var service models.Service
 		var categoryName, categorySlug sql.NullString
@@ -173,7 +173,8 @@ func (r *ServiceRepository) SearchServices(ctx context.Context, query string) ([
 			&service.Slug,
 			&service.Description,
 			&service.Price,
-			&service.EstimatedDeliveryDays,
+			&service.MinDeliveryDays,
+			&service.MaxDeliveryDays,
 			&service.Features,
 			&service.Requirements,
 			&service.SuitedFor,
@@ -218,9 +219,9 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		INSERT INTO services (
 			category_id, name, slug, description, short_description,
 			features, requirements, price, booking_amount,
-			estimated_delivery_days, icon, status, priority, suited_for, whats_included
+			min_delivery_days, max_delivery_days, icon, status, priority, suited_for, whats_included
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -233,7 +234,8 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		service.Requirements,
 		service.Price,
 		service.BookingAmount,
-		service.EstimatedDeliveryDays,
+		service.MinDeliveryDays,
+		service.MaxDeliveryDays,
 		service.Icon,
 		service.Status,
 		service.Priority,
@@ -258,8 +260,8 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 		UPDATE services 
 		SET category_id = $1, name = $2, slug = $3::text, description = $4, short_description = $5,
 			features = $6, requirements = $7, price = $8, booking_amount = $9,
-			estimated_delivery_days = $10, icon = $11, status = $12, priority = $13,
-			suited_for = $14, whats_included = $15,
+			min_delivery_days = $10, max_delivery_days = $11, icon = $12, status = $13, priority = $14,
+			suited_for = $15, whats_included = $16,
 			previous_slugs = (
 				SELECT ARRAY(
 					SELECT DISTINCT s2
@@ -271,7 +273,7 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 				)
 			),
 			updated_at = NOW()
-		WHERE id = $16
+		WHERE id = $17
 		RETURNING created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
@@ -284,7 +286,8 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 		service.Requirements,
 		service.Price,
 		service.BookingAmount,
-		service.EstimatedDeliveryDays,
+		service.MinDeliveryDays,
+		service.MaxDeliveryDays,
 		service.Icon,
 		service.Status,
 		service.Priority,
@@ -319,7 +322,7 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 	query := `
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.suited_for, s.whats_included, s.price,
-			s.booking_amount, s.estimated_delivery_days, s.icon, s.status, s.priority,
+			s.booking_amount, s.min_delivery_days, s.max_delivery_days, s.icon, s.status, s.priority,
 			s.created_at, s.updated_at,
 			c.id, c.name, c.slug, c.description, c.icon, c.status, c.priority,
 			COALESCE((SELECT AVG(rating) FROM reviews WHERE service_id = s.id AND status = 'published'), 0) AS avg_rating,
@@ -337,7 +340,7 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 	}
 	defer rows.Close()
 
-	var services []models.Service
+	services := []models.Service{}
 	for rows.Next() {
 		var service models.Service
 		service.Category = &models.ServiceCategory{}
@@ -355,7 +358,8 @@ func (r *ServiceRepository) GetServices(ctx context.Context, categoryID *int, ca
 			&service.WhatsIncluded,
 			&service.Price,
 			&service.BookingAmount,
-			&service.EstimatedDeliveryDays,
+			&service.MinDeliveryDays,
+			&service.MaxDeliveryDays,
 			&service.Icon,
 			&service.Status,
 			&service.Priority,
@@ -384,7 +388,7 @@ func (r *ServiceRepository) GetServiceByID(ctx context.Context, id int) (*models
 	query := `
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.suited_for, s.whats_included, s.price,
-			s.booking_amount, s.estimated_delivery_days, s.icon, s.status,
+			s.booking_amount, s.min_delivery_days, s.max_delivery_days, s.icon, s.status,
 			s.created_at, s.updated_at,
 			c.id, c.name, c.slug, c.description, c.icon, c.status
 		FROM services s
@@ -405,7 +409,8 @@ func (r *ServiceRepository) GetServiceByID(ctx context.Context, id int) (*models
 		&service.WhatsIncluded,
 		&service.Price,
 		&service.BookingAmount,
-		&service.EstimatedDeliveryDays,
+		&service.MinDeliveryDays,
+		&service.MaxDeliveryDays,
 		&service.Icon,
 		&service.Status,
 		&service.CreatedAt,
@@ -428,7 +433,7 @@ func (r *ServiceRepository) GetServiceBySlug(ctx context.Context, slug string) (
 	query := `
 		SELECT s.id, s.category_id, s.name, s.slug, s.description,
 			s.short_description, s.features, s.requirements, s.suited_for, s.whats_included, s.price,
-			s.booking_amount, s.estimated_delivery_days, s.icon, s.status,
+			s.booking_amount, s.min_delivery_days, s.max_delivery_days, s.icon, s.status,
 			s.created_at, s.updated_at, s.previous_slugs,
 			c.id, c.name, c.slug, c.description, c.icon, c.status
 		FROM services s
@@ -449,7 +454,8 @@ func (r *ServiceRepository) GetServiceBySlug(ctx context.Context, slug string) (
 		&service.WhatsIncluded,
 		&service.Price,
 		&service.BookingAmount,
-		&service.EstimatedDeliveryDays,
+		&service.MinDeliveryDays,
+		&service.MaxDeliveryDays,
 		&service.Icon,
 		&service.Status,
 		&service.CreatedAt,

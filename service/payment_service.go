@@ -16,11 +16,12 @@ import (
 type PaymentService struct {
 	razorpayClient *razorpay.Client
 	orderRepo      *repository.OrderRepository
+	mailService    *MailService
 	keySecret      string
 	webhookSecret  string
 }
 
-func NewPaymentService(orderRepo *repository.OrderRepository) *PaymentService {
+func NewPaymentService(orderRepo *repository.OrderRepository, mailService *MailService) *PaymentService {
 	keyID := os.Getenv("RAZORPAY_KEY_ID")
 	keySecret := os.Getenv("RAZORPAY_KEY_SECRET")
 	webhookSecret := os.Getenv("RAZORPAY_WEBHOOK_SECRET")
@@ -31,6 +32,7 @@ func NewPaymentService(orderRepo *repository.OrderRepository) *PaymentService {
 		return &PaymentService{
 			razorpayClient: nil,
 			orderRepo:      orderRepo,
+			mailService:    mailService,
 			keySecret:      "",
 			webhookSecret:  "",
 		}
@@ -41,6 +43,7 @@ func NewPaymentService(orderRepo *repository.OrderRepository) *PaymentService {
 	return &PaymentService{
 		razorpayClient: client,
 		orderRepo:      orderRepo,
+		mailService:    mailService,
 		keySecret:      keySecret,
 		webhookSecret:  webhookSecret,
 	}
@@ -125,6 +128,11 @@ func (s *PaymentService) HandlePaymentSuccess(ctx context.Context, orderID strin
 		return fmt.Errorf("failed to update order payment status: %v", err)
 	}
 
+	// Booking payment confirmed → the order is now placed; email the customer.
+	if nextStatus == models.OrderStatusBookingAmountReceived {
+		notifyOrderEmailAsync(s.orderRepo, s.mailService, order.ID, false)
+	}
+
 	return nil
 }
 
@@ -199,7 +207,16 @@ func (s *PaymentService) handlePaymentCaptured(ctx context.Context, payload map[
 		return fmt.Errorf("invalid order status for payment: %s", order.Status)
 	}
 
-	return s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, nextStatus)
+	if err := s.orderRepo.UpdateOrderPaymentStatus(ctx, order.ID, true, paymentID, nextStatus); err != nil {
+		return err
+	}
+
+	// Booking payment confirmed → the order is now placed; email the customer.
+	if nextStatus == models.OrderStatusBookingAmountReceived {
+		notifyOrderEmailAsync(s.orderRepo, s.mailService, order.ID, false)
+	}
+
+	return nil
 }
 
 func (s *PaymentService) handlePaymentFailed(ctx context.Context, payload map[string]interface{}) error {

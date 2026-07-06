@@ -696,6 +696,47 @@ func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID int, userID 
 	return &order, nil
 }
 
+// GetOrderForNotification loads an order with its items and the customer's
+// contact details (email/name), unscoped by user — used to send order emails.
+func (r *OrderRepository) GetOrderForNotification(ctx context.Context, orderID int) (*models.Order, error) {
+	query := `SELECT o.id, o.user_id, o.order_number, o.total_amount, o.booking_amount, o.remaining_amount,
+	          o.coupon_code, o.discount_amount, o.status, o.payment_status, o.created_at, o.updated_at,
+	          u.first_name, u.last_name, u.email, u.phone
+	          FROM orders o JOIN users u ON o.user_id = u.id
+	          WHERE o.id = $1`
+
+	var order models.Order
+	order.User = &models.User{}
+	err := r.db.QueryRow(ctx, query, orderID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.OrderNumber,
+		&order.TotalAmount,
+		&order.BookingAmount,
+		&order.RemainingAmount,
+		&order.CouponCode,
+		&order.DiscountAmount,
+		&order.Status,
+		&order.PaymentStatus,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+		&order.User.FirstName,
+		&order.User.LastName,
+		&order.User.Email,
+		&order.User.Phone,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	items, err := r.GetOrderItems(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	order.Items = items
+	return &order, nil
+}
+
 // GetOrderByNumber retrieves an order by its order number for a specific user
 func (r *OrderRepository) GetOrderByNumber(ctx context.Context, orderNumber string, userID string) (*models.Order, error) {
 	query := `SELECT id, user_id, order_number, total_amount, booking_amount, remaining_amount, 

@@ -14,15 +14,47 @@ type OrderService struct {
 	serviceRepo   *repository.ServiceRepository
 	cartRepo      *repository.CartRepository
 	couponService *CouponService
+	mailService   *MailService
 }
 
-func NewOrderService(orderRepo *repository.OrderRepository, serviceRepo *repository.ServiceRepository, cartRepo *repository.CartRepository, couponService *CouponService) *OrderService {
+func NewOrderService(orderRepo *repository.OrderRepository, serviceRepo *repository.ServiceRepository, cartRepo *repository.CartRepository, couponService *CouponService, mailService *MailService) *OrderService {
 	return &OrderService{
 		orderRepo:     orderRepo,
 		serviceRepo:   serviceRepo,
 		cartRepo:      cartRepo,
 		couponService: couponService,
+		mailService:   mailService,
 	}
+}
+
+// notifyOrderEmailAsync loads the full order + customer and emails them, off the
+// request path — email failures are logged and never block the order flow.
+// Shared by OrderService (completion) and PaymentService (order placed on payment).
+func notifyOrderEmailAsync(orderRepo *repository.OrderRepository, mail *MailService, orderID int, completed bool) {
+	if mail == nil {
+		return
+	}
+	go func() {
+		order, err := orderRepo.GetOrderForNotification(context.Background(), orderID)
+		if err != nil {
+			fmt.Printf("order email: failed to load order %d: %v\n", orderID, err)
+			return
+		}
+		if completed {
+			if err := mail.SendOrderCompletedEmail(order); err != nil {
+				fmt.Printf("order email: completed send failed for order %d: %v\n", orderID, err)
+			}
+			return
+		}
+
+		// Order booked: notify the customer and the ProtAcc team (FROM_EMAIL).
+		if err := mail.SendOrderPlacedEmail(order); err != nil {
+			fmt.Printf("order email: placed send failed for order %d: %v\n", orderID, err)
+		}
+		if err := mail.SendOrderPlacedAdminEmail(order); err != nil {
+			fmt.Printf("order email: admin notify failed for order %d: %v\n", orderID, err)
+		}
+	}()
 }
 
 // PreviewCoupon validates a coupon against the user's current cart and returns
@@ -120,7 +152,16 @@ func (s *OrderService) GetOrdersWithFilters(ctx context.Context, userID *string,
 }
 
 func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID int, status models.OrderStatus, notes string, updatedBy string) error {
-	return s.orderRepo.UpdateOrderStatus(ctx, orderID, status, notes, updatedBy)
+	if err := s.orderRepo.UpdateOrderStatus(ctx, orderID, status, notes, updatedBy); err != nil {
+		return err
+	}
+
+	// Email the customer the completed-order summary when the order is marked complete.
+	if status == models.OrderStatusCompleted {
+		notifyOrderEmailAsync(s.orderRepo, s.mailService, orderID, true)
+	}
+
+	return nil
 }
 
 func (s *OrderService) GetOrderStatusHistory(ctx context.Context, orderID int) ([]models.OrderStatusHistory, error) {

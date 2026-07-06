@@ -38,7 +38,8 @@ type Service struct {
 	WhatsIncluded         []string         `json:"whats_included" db:"whats_included"`
 	Price                 float64          `json:"price" db:"price"`
 	BookingAmount         float64          `json:"booking_amount" db:"booking_amount"`
-	EstimatedDeliveryDays int              `json:"estimated_delivery_days" db:"estimated_delivery_days"`
+	MinDeliveryDays       int              `json:"min_delivery_days" db:"min_delivery_days"`
+	MaxDeliveryDays       int              `json:"max_delivery_days" db:"max_delivery_days"`
 	Icon                  string           `json:"icon" db:"icon"`
 	Status                ServiceStatus    `json:"status" db:"status"`
 	Priority              int              `json:"priority" db:"priority"`

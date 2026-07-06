@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/aman4411/protacc-backend/models"
 )
 
 type MailService struct {
@@ -791,4 +795,232 @@ func (s *MailService) htmlToPlainText(html string) string {
 	text = strings.ReplaceAll(text, "Welcome aboard", "\n=== Welcome aboard")
 
 	return text
+}
+
+// ===== Order emails =====
+
+// formatINR renders an amount as a rupee string, trimming trailing zeros (₹999, ₹1499.5).
+func formatINR(v float64) string {
+	return "₹" + strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+// orderStatusLabel converts an order status enum into a human-friendly label.
+func orderStatusLabel(status models.OrderStatus) string {
+	switch status {
+	case models.OrderStatusPendingBookingPayment:
+		return "Pending booking payment"
+	case models.OrderStatusBookingAmountReceived:
+		return "Booking amount received"
+	case models.OrderStatusProcessing:
+		return "Processing"
+	case models.OrderStatusDocumentsRequired:
+		return "Documents required"
+	case models.OrderStatusDocumentsReceived:
+		return "Documents received"
+	case models.OrderStatusInProgress:
+		return "In progress"
+	case models.OrderStatusPendingFinalPayment:
+		return "Pending final payment"
+	case models.OrderStatusFullPaymentReceived:
+		return "Full payment received"
+	case models.OrderStatusCompleted:
+		return "Completed"
+	case models.OrderStatusCancelled:
+		return "Cancelled"
+	default:
+		return string(status)
+	}
+}
+
+// orderDetailsHTML builds the shared order-summary block (items table + totals).
+func (s *MailService) orderDetailsHTML(order *models.Order) string {
+	var rows strings.Builder
+	for _, it := range order.Items {
+		name := "Service"
+		if it.Service != nil && it.Service.Name != "" {
+			name = it.Service.Name
+		}
+		rows.WriteString(fmt.Sprintf(`
+			<tr>
+				<td style="padding:12px 0;border-bottom:1px solid #eef2f7;color:#374151;">%s</td>
+				<td style="padding:12px 0;border-bottom:1px solid #eef2f7;text-align:center;color:#6b7280;">%d</td>
+				<td style="padding:12px 0;border-bottom:1px solid #eef2f7;text-align:right;color:#111827;font-weight:600;white-space:nowrap;">%s</td>
+			</tr>`, html.EscapeString(name), it.Quantity, formatINR(it.Price)))
+	}
+
+	discountRow := ""
+	if order.DiscountAmount > 0 {
+		code := ""
+		if order.CouponCode != nil && *order.CouponCode != "" {
+			code = " (" + html.EscapeString(*order.CouponCode) + ")"
+		}
+		discountRow = fmt.Sprintf(`<tr><td colspan="2" style="padding:6px 0;color:#059669;">Discount%s</td><td style="padding:6px 0;text-align:right;color:#059669;font-weight:600;white-space:nowrap;">-%s</td></tr>`, code, formatINR(order.DiscountAmount))
+	}
+
+	return fmt.Sprintf(`
+		<div style="background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:20px 22px;margin:24px 0;">
+			<table width="100%%" style="border-collapse:collapse;font-size:14px;">
+				<tr>
+					<td style="padding:4px 0;color:#6b7280;">Order number</td>
+					<td style="padding:4px 0;text-align:right;color:#111827;font-weight:700;">%s</td>
+				</tr>
+				<tr>
+					<td style="padding:4px 0;color:#6b7280;">Order date</td>
+					<td style="padding:4px 0;text-align:right;color:#111827;">%s</td>
+				</tr>
+				<tr>
+					<td style="padding:4px 0;color:#6b7280;">Status</td>
+					<td style="padding:4px 0;text-align:right;"><span style="display:inline-block;background:#eef2ff;color:#4f46e5;font-weight:600;font-size:12px;padding:3px 10px;border-radius:999px;">%s</span></td>
+				</tr>
+			</table>
+
+			<table width="100%%" style="border-collapse:collapse;font-size:14px;margin-top:16px;">
+				<thead>
+					<tr>
+						<th align="left" style="padding-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;">Service</th>
+						<th align="center" style="padding-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;">Qty</th>
+						<th align="right" style="padding-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;">Price</th>
+					</tr>
+				</thead>
+				<tbody>%s</tbody>
+			</table>
+
+			<table width="100%%" style="border-collapse:collapse;font-size:14px;margin-top:14px;">
+				%s
+				<tr><td colspan="2" style="padding:6px 0;color:#374151;">Total amount</td><td style="padding:6px 0;text-align:right;color:#111827;font-weight:700;white-space:nowrap;">%s</td></tr>
+				<tr><td colspan="2" style="padding:6px 0;color:#374151;">Booking amount</td><td style="padding:6px 0;text-align:right;color:#111827;font-weight:600;white-space:nowrap;">%s</td></tr>
+				<tr><td colspan="2" style="padding:6px 0;color:#374151;">Remaining amount</td><td style="padding:6px 0;text-align:right;color:#111827;font-weight:600;white-space:nowrap;">%s</td></tr>
+			</table>
+		</div>`,
+		html.EscapeString(order.OrderNumber),
+		order.CreatedAt.Format("2 Jan 2006, 3:04 PM"),
+		orderStatusLabel(order.Status),
+		rows.String(),
+		discountRow,
+		formatINR(order.TotalAmount),
+		formatINR(order.BookingAmount),
+		formatINR(order.RemainingAmount),
+	)
+}
+
+// orderEmailShell wraps intro copy + the order details block in the branded layout.
+func (s *MailService) orderEmailShell(title, firstName, heading, intro string, order *models.Order) string {
+	greetingName := strings.TrimSpace(firstName)
+	if greetingName == "" {
+		greetingName = "there"
+	}
+
+	ctaHTML := ""
+	if frontend := strings.TrimRight(os.Getenv("FRONTEND_URL"), "/"); frontend != "" {
+		ctaHTML = fmt.Sprintf(`
+			<div style="text-align:center;margin:8px 0 4px;">
+				<a href="%s/orders" style="display:inline-block;background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);color:#ffffff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:12px;">View your orders</a>
+			</div>`, frontend)
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>%s</title></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#374151;">
+	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
+		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
+			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">%s</div>
+			</div>
+			<div style="padding:32px 30px;">
+				<p style="font-size:16px;margin:0 0 12px;">Hi %s,</p>
+				<p style="font-size:16px;line-height:1.6;margin:0 0 8px;color:#4b5563;">%s</p>
+				%s
+				%s
+				<p style="font-size:14px;line-height:1.6;color:#6b7280;margin:20px 0 0;">If you have any questions about this order, just reply to this email and our Chartered Accountants will help you out.</p>
+			</div>
+			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
+				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — your Chartered Accountants for GST, ITR &amp; company compliance.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>`, title, heading, html.EscapeString(greetingName), intro, s.orderDetailsHTML(order), ctaHTML)
+}
+
+// SendOrderPlacedEmail notifies the customer that their order was placed, with full details.
+func (s *MailService) SendOrderPlacedEmail(order *models.Order) error {
+	if order == nil || order.User == nil || strings.TrimSpace(order.User.Email) == "" {
+		return fmt.Errorf("order placed email: missing recipient")
+	}
+	subject := fmt.Sprintf("Order confirmed: %s", order.OrderNumber)
+	intro := "Thank you for your order! We've received it and our team will begin working on it shortly. Here are your order details:"
+	html := s.orderEmailShell("Order confirmed", order.User.FirstName, "Order confirmed 🎉", intro, order)
+	return s.sendEmail(order.User.Email, subject, html)
+}
+
+// SendOrderPlacedAdminEmail notifies the ProtAcc team (FROM_EMAIL) that a new
+// order was booked. Sender and recipient are both FROM_EMAIL by design.
+func (s *MailService) SendOrderPlacedAdminEmail(order *models.Order) error {
+	if order == nil {
+		return fmt.Errorf("order admin email: nil order")
+	}
+	if strings.TrimSpace(s.fromEmail) == "" {
+		return fmt.Errorf("order admin email: FROM_EMAIL not set")
+	}
+
+	customerName, customerEmail, customerPhone := "—", "—", "—"
+	if order.User != nil {
+		if n := strings.TrimSpace(order.User.FirstName + " " + order.User.LastName); n != "" {
+			customerName = html.EscapeString(n)
+		}
+		if order.User.Email != "" {
+			customerEmail = html.EscapeString(order.User.Email)
+		}
+		if order.User.Phone != "" {
+			customerPhone = html.EscapeString(order.User.Phone)
+		}
+	}
+
+	customerBlock := fmt.Sprintf(`
+		<div style="background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:20px 22px;margin:24px 0;">
+			<table width="100%%" style="border-collapse:collapse;font-size:14px;">
+				<tr><td style="padding:4px 0;color:#6b7280;">Customer</td><td style="padding:4px 0;text-align:right;color:#111827;font-weight:600;">%s</td></tr>
+				<tr><td style="padding:4px 0;color:#6b7280;">Email</td><td style="padding:4px 0;text-align:right;color:#111827;">%s</td></tr>
+				<tr><td style="padding:4px 0;color:#6b7280;">Phone</td><td style="padding:4px 0;text-align:right;color:#111827;">%s</td></tr>
+			</table>
+		</div>`, customerName, customerEmail, customerPhone)
+
+	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New order booked</title></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#374151;">
+	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
+		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
+			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">New order booked</div>
+			</div>
+			<div style="padding:32px 30px;">
+				<p style="font-size:16px;line-height:1.6;margin:0 0 8px;color:#4b5563;">A new order has been booked and the booking payment is confirmed. Customer and order details are below.</p>
+				%s
+				%s
+			</div>
+			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
+				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — internal order notification.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>`, customerBlock, s.orderDetailsHTML(order))
+
+	subject := fmt.Sprintf("New order booked: %s", order.OrderNumber)
+	return s.sendEmail(s.fromEmail, subject, htmlBody)
+}
+
+// SendOrderCompletedEmail notifies the customer that their order is complete, with full details.
+func (s *MailService) SendOrderCompletedEmail(order *models.Order) error {
+	if order == nil || order.User == nil || strings.TrimSpace(order.User.Email) == "" {
+		return fmt.Errorf("order completed email: missing recipient")
+	}
+	subject := fmt.Sprintf("Your order is complete: %s", order.OrderNumber)
+	intro := "Great news — your order is now complete! Thank you for trusting ProtAcc. Here's a summary of the completed order:"
+	html := s.orderEmailShell("Order complete", order.User.FirstName, "Your order is complete ✅", intro, order)
+	return s.sendEmail(order.User.Email, subject, html)
 }
