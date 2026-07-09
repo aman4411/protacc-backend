@@ -1,0 +1,3 @@
+ALTER TABLE services DROP COLUMN IF EXISTS faqs;
+ALTER TABLE services DROP COLUMN IF EXISTS seo_title;
+ALTER TABLE services DROP COLUMN IF EXISTS seo_description;

@@ -13,6 +13,13 @@ const (
 	ServiceStatusInactive ServiceStatus = "inactive"
 )
 
+// ServiceFAQ is a question/answer pair shown on a service overview page and
+// emitted as FAQPage structured data. Stored as JSONB on the service row.
+type ServiceFAQ struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
 type ServiceCategory struct {
 	ID          int           `json:"id" db:"id"`
 	Name        string        `json:"name" db:"name"`
@@ -42,6 +49,9 @@ type Service struct {
 	MaxDeliveryDays       int              `json:"max_delivery_days" db:"max_delivery_days"`
 	FlashNote             string           `json:"flash_note" db:"flash_note"`
 	PriceType             string           `json:"price_type" db:"price_type"`
+	FAQs                  []ServiceFAQ     `json:"faqs" db:"faqs"`
+	SEOTitle              string           `json:"seo_title" db:"seo_title"`
+	SEODescription        string           `json:"seo_description" db:"seo_description"`
 	Icon                  string           `json:"icon" db:"icon"`
 	Status                ServiceStatus    `json:"status" db:"status"`
 	Priority              int              `json:"priority" db:"priority"`

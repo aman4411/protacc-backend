@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aman4411/protacc-backend/models"
@@ -59,11 +60,32 @@ func (s *ServiceService) SearchServices(ctx context.Context, query string) ([]mo
 }
 
 func (s *ServiceService) CreateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	normalizeService(service)
 	return s.repo.CreateService(ctx, service)
 }
 
 func (s *ServiceService) UpdateService(ctx context.Context, service *models.Service) (*models.Service, error) {
+	normalizeService(service)
 	return s.repo.UpdateService(ctx, service)
+}
+
+// normalizeService cleans up the FAQ list (drops blank entries, never nil) and
+// defaults the price type so downstream storage/rendering is consistent.
+func normalizeService(service *models.Service) {
+	cleaned := make([]models.ServiceFAQ, 0, len(service.FAQs))
+	for _, f := range service.FAQs {
+		q := strings.TrimSpace(f.Question)
+		a := strings.TrimSpace(f.Answer)
+		if q == "" || a == "" {
+			continue
+		}
+		cleaned = append(cleaned, models.ServiceFAQ{Question: q, Answer: a})
+	}
+	service.FAQs = cleaned
+
+	if strings.TrimSpace(service.PriceType) == "" {
+		service.PriceType = "fixed"
+	}
 }
 
 func (s *ServiceService) DeleteService(ctx context.Context, serviceID int) error {
