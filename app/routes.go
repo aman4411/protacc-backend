@@ -10,7 +10,7 @@ import (
 func SetupRoutes(app *fiber.App, f *Factories) {
 	// Setup CORS with specific configuration
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "https://protacc.in, https://www.protacc.in, https://protacc.netlify.app, http://localhost:3000",
+		AllowOrigins:     "https://protacc.in, https://www.protacc.in, https://protacc.netlify.app, http://localhost:3000, http://localhost:45678",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		ExposeHeaders:    "Authorization",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
