@@ -20,14 +20,16 @@ type ContactService interface {
 }
 
 type contactService struct {
-	repo      repository.ContactRepository
-	validator *validator.Validate
+	repo        repository.ContactRepository
+	validator   *validator.Validate
+	mailService *MailService
 }
 
-func NewContactService(repo repository.ContactRepository) ContactService {
+func NewContactService(repo repository.ContactRepository, mailService *MailService) ContactService {
 	return &contactService{
-		repo:      repo,
-		validator: validator.New(),
+		repo:        repo,
+		validator:   validator.New(),
+		mailService: mailService,
 	}
 }
 
@@ -78,6 +80,15 @@ func (s *contactService) CreateContact(contact *models.CreateContactRequest, ipA
 	result, err := s.repo.CreateContact(contact, ipAddress, userAgent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create contact message: %w", err)
+	}
+
+	// Notify the team of the new message, off the request path (never blocks submission).
+	if s.mailService != nil {
+		go func() {
+			if err := s.mailService.SendContactNotificationEmail(result); err != nil {
+				fmt.Printf("contact notification email failed for contact %d: %v\n", result.ID, err)
+			}
+		}()
 	}
 
 	return result, nil

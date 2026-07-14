@@ -21,7 +21,7 @@ type UserRequest struct {
 	FirstName       string `json:"firstName" validate:"required"`
 	LastName        string `json:"lastName" validate:"required"`
 	Email           string `json:"email" validate:"required,email"`
-	Phone           string `json:"phone" validate:"required"`
+	Phone           string `json:"phone" validate:"required,len=10,numeric"`
 	Password        string `json:"password" validate:"required,min=6"`
 	ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=Password"`
 }

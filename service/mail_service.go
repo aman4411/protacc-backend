@@ -1024,3 +1024,106 @@ func (s *MailService) SendOrderCompletedEmail(order *models.Order) error {
 	html := s.orderEmailShell("Order complete", order.User.FirstName, "Your order is complete ✅", intro, order)
 	return s.sendEmail(order.User.Email, subject, html)
 }
+
+// ===== Lead / Contact admin notifications (sent to FROM_EMAIL) =====
+
+// adminRow renders one label/value row; blank values are shown as "—".
+func adminRow(label, value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		v = "—"
+	}
+	return fmt.Sprintf(`<tr><td style="padding:6px 0;color:#6b7280;vertical-align:top;white-space:nowrap;padding-right:16px;">%s</td><td style="padding:6px 0;color:#111827;">%s</td></tr>`,
+		html.EscapeString(label), html.EscapeString(v))
+}
+
+// sendAdminNotification wraps a rows table in the branded layout and sends it to FROM_EMAIL.
+func (s *MailService) sendAdminNotification(subject, heading, intro, rowsHTML string) error {
+	if strings.TrimSpace(s.fromEmail) == "" {
+		return fmt.Errorf("admin notification: FROM_EMAIL not set")
+	}
+	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>%s</title></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#374151;">
+	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
+		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
+			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">%s</div>
+			</div>
+			<div style="padding:32px 30px;">
+				<p style="font-size:16px;line-height:1.6;margin:0 0 8px;color:#4b5563;">%s</p>
+				<div style="background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:20px 22px;margin:20px 0;">
+					<table width="100%%" style="border-collapse:collapse;font-size:14px;">%s</table>
+				</div>
+			</div>
+			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
+				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — internal notification.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>`, subject, heading, intro, rowsHTML)
+	return s.sendEmail(s.fromEmail, subject, htmlBody)
+}
+
+// SendLeadNotificationEmail notifies the team of a new consultancy enquiry.
+func (s *MailService) SendLeadNotificationEmail(lead *models.BusinessLead) error {
+	if lead == nil {
+		return fmt.Errorf("lead notification: nil lead")
+	}
+	name := strings.TrimSpace(lead.FirstName + " " + lead.LastName)
+	company, businessType, budget, message := "", "", "", ""
+	if lead.CompanyName != nil {
+		company = *lead.CompanyName
+	}
+	if lead.BusinessType != nil {
+		businessType = *lead.BusinessType
+	}
+	if lead.BudgetRange != nil {
+		budget = *lead.BudgetRange
+	}
+	if lead.Message != nil {
+		message = *lead.Message
+	}
+	var rows strings.Builder
+	rows.WriteString(adminRow("Name", name))
+	rows.WriteString(adminRow("Email", lead.Email))
+	rows.WriteString(adminRow("Phone", lead.Phone))
+	rows.WriteString(adminRow("Company", company))
+	rows.WriteString(adminRow("Business type", businessType))
+	rows.WriteString(adminRow("Services interested", strings.Join(lead.ServicesInterested, ", ")))
+	rows.WriteString(adminRow("Budget range", budget))
+	rows.WriteString(adminRow("Preferred contact", string(lead.PreferredContactMethod)))
+	rows.WriteString(adminRow("Message", message))
+
+	subject := fmt.Sprintf("New consultancy enquiry: %s", name)
+	return s.sendAdminNotification(subject, "New consultancy enquiry", "A new consultancy request has been submitted:", rows.String())
+}
+
+// SendContactNotificationEmail notifies the team of a new contact-form message.
+func (s *MailService) SendContactNotificationEmail(msg *models.ContactMessage) error {
+	if msg == nil {
+		return fmt.Errorf("contact notification: nil message")
+	}
+	company, serviceInterest := "", ""
+	if msg.Company != nil {
+		company = *msg.Company
+	}
+	if msg.ServiceInterest != nil {
+		serviceInterest = *msg.ServiceInterest
+	}
+	var rows strings.Builder
+	rows.WriteString(adminRow("Name", msg.Name))
+	rows.WriteString(adminRow("Email", msg.Email))
+	rows.WriteString(adminRow("Phone", msg.Phone))
+	rows.WriteString(adminRow("Company", company))
+	rows.WriteString(adminRow("Subject", msg.Subject))
+	rows.WriteString(adminRow("Service interest", serviceInterest))
+	rows.WriteString(adminRow("Preferred contact", msg.PreferredContact))
+	rows.WriteString(adminRow("Message", msg.Message))
+
+	subject := fmt.Sprintf("New contact message: %s", msg.Subject)
+	return s.sendAdminNotification(subject, "New contact message", "A new message has been submitted through the contact form:", rows.String())
+}

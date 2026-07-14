@@ -3,12 +3,26 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/gosimple/slug"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// faqsToJSON marshals the FAQ list to a JSON string for the jsonb column.
+// pgx can't encode a []models.ServiceFAQ slice directly, so we pass JSON text.
+func faqsToJSON(faqs []models.ServiceFAQ) string {
+	if len(faqs) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(faqs)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
 
 type ServiceRepository struct {
 	db *pgxpool.Pool
@@ -244,7 +258,7 @@ func (r *ServiceRepository) CreateService(ctx context.Context, service *models.S
 		service.WhatsIncluded,
 		service.FlashNote,
 		service.PriceType,
-		service.FAQs,
+		faqsToJSON(service.FAQs),
 		service.SEOTitle,
 		service.SEODescription,
 	).Scan(&service.ID, &service.CreatedAt, &service.UpdatedAt)
@@ -302,7 +316,7 @@ func (r *ServiceRepository) UpdateService(ctx context.Context, service *models.S
 		service.WhatsIncluded,
 		service.FlashNote,
 		service.PriceType,
-		service.FAQs,
+		faqsToJSON(service.FAQs),
 		service.SEOTitle,
 		service.SEODescription,
 		service.ID,

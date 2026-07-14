@@ -57,8 +57,8 @@ func NewFactories() (*Factories, error) {
 	paymentService := service.NewPaymentService(orderRepo, mailService)
 	settingsService := service.NewSettingsService(settingsRepo)
 	analyticsService := service.NewAnalyticsService(analyticsRepo)
-	leadService := service.NewLeadService(leadRepo)
-	contactService := service.NewContactService(contactRepo)
+	leadService := service.NewLeadService(leadRepo, mailService)
+	contactService := service.NewContactService(contactRepo, mailService)
 	reviewService := service.NewReviewService(reviewRepo)
 
 	// Initialize handlers
