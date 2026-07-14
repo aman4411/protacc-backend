@@ -47,7 +47,7 @@ func notifyOrderEmailAsync(orderRepo *repository.OrderRepository, mail *MailServ
 			return
 		}
 
-		// Order booked: notify the customer and the ProtAcc team (FROM_EMAIL).
+		// Order booked: notify the customer and the Protacc team (FROM_EMAIL).
 		if err := mail.SendOrderPlacedEmail(order); err != nil {
 			fmt.Printf("order email: placed send failed for order %d: %v\n", orderID, err)
 		}

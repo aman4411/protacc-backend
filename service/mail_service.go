@@ -88,7 +88,7 @@ func (s *MailService) sendEmail(to, subject, html string) error {
 	plainText := s.htmlToPlainText(html)
 
 	email := resendEmail{
-		From:    fmt.Sprintf("ProtAcc Support <%s>", s.fromEmail),
+		From:    fmt.Sprintf("Protacc Support <%s>", s.fromEmail),
 		To:      []string{strings.TrimSpace(to)},
 		Subject: subject,
 		HTML:    html,
@@ -137,14 +137,14 @@ func (s *MailService) sendEmail(to, subject, html string) error {
 }
 
 func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) error {
-	subject := "Verify Your ProtAcc Account - Email Confirmation Required"
+	subject := "Verify Your Protacc Account - Email Confirmation Required"
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="en">
 		<head>
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Verify Your Email - ProtAcc</title>
+			<title>Verify Your Email - Protacc</title>
 			<style>
 				* { margin: 0; padding: 0; box-sizing: border-box; }
 				body { 
@@ -297,7 +297,7 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 				<div class="email-container">
 					<!-- Header -->
 					<div class="header">
-						<div class="logo">ProtAcc</div>
+						<div class="logo">Protacc</div>
 						<div class="tagline">Professional Accounting & Compliance Services</div>
 					</div>
 					
@@ -305,7 +305,7 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 					<div class="content">
 						<div class="greeting">Hi %s,</div>
 						<div class="message">
-							Welcome to ProtAcc! We're excited to have you join our community of entrepreneurs and business owners.
+							Welcome to Protacc! We're excited to have you join our community of entrepreneurs and business owners.
 							<br><br>
 							To complete your account setup and ensure the security of your account, please verify your email address using the verification code below:
 						</div>
@@ -319,7 +319,7 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 						
 						<!-- Security Note -->
 						<div class="security-note">
-							<p><strong>🔒 Security Tip:</strong> Never share this code with anyone. ProtAcc will never ask for your verification code via phone or email.</p>
+							<p><strong>🔒 Security Tip:</strong> Never share this code with anyone. Protacc will never ask for your verification code via phone or email.</p>
 						</div>
 						
 						<div class="divider"></div>
@@ -338,7 +338,7 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 						</div>
 						<div class="footer-text">
 							Best regards,<br>
-							<strong>The ProtAcc Team</strong>
+							<strong>The Protacc Team</strong>
 						</div>
 						<div class="social-links">
 							<a href="https://protacc.in">Visit Website</a> • 
@@ -356,14 +356,14 @@ func (s *MailService) SendVerificationEmail(toEmail, firstName, otp string) erro
 }
 
 func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
-	subject := "Welcome to ProtAcc - Account Successfully Verified"
+	subject := "Welcome to Protacc - Account Successfully Verified"
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="en">
 		<head>
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Welcome to ProtAcc</title>
+			<title>Welcome to Protacc</title>
 			<style>
 				* { margin: 0; padding: 0; box-sizing: border-box; }
 				body { 
@@ -593,7 +593,7 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 				<div class="email-container">
 					<!-- Header -->
 					<div class="header">
-						<div class="logo">ProtAcc</div>
+						<div class="logo">Protacc</div>
 						<div class="tagline">Professional Accounting & Compliance Services</div>
 						<div class="success-badge">✅ Account Verified Successfully</div>
 					</div>
@@ -602,7 +602,7 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 					<div class="content">
 						<div class="greeting">Welcome, %s!</div>
 						<div class="message">
-							Congratulations! Your email has been verified and your ProtAcc account is now fully active. 
+							Congratulations! Your email has been verified and your Protacc account is now fully active. 
 							You're now part of a community of successful entrepreneurs and business owners who trust us with their compliance needs.
 						</div>
 						
@@ -680,7 +680,7 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 						</div>
 						<div class="footer-text">
 							Best regards,<br>
-							<strong>The ProtAcc Team</strong><br>
+							<strong>The Protacc Team</strong><br>
 							<em>Your trusted compliance partner</em>
 						</div>
 						<div class="social-links">
@@ -700,14 +700,14 @@ func (s *MailService) SendWelcomeEmail(toEmail, firstName string) error {
 }
 
 func (s *MailService) SendPasswordResetEmail(toEmail, firstName, resetLink string) error {
-	subject := "Reset Your ProtAcc Password"
+	subject := "Reset Your Protacc Password"
 	html := fmt.Sprintf(`
 		<!DOCTYPE html>
 		<html lang="en">
 		<head>
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Reset Password - ProtAcc</title>
+			<title>Reset Password - Protacc</title>
 			<style>
 				body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #374151; background-color: #f8fafc; margin: 0; padding: 20px; }
 				.email-container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
@@ -723,11 +723,11 @@ func (s *MailService) SendPasswordResetEmail(toEmail, firstName, resetLink strin
 		</head>
 		<body>
 			<div class="email-container">
-				<div class="header"><div class="logo">ProtAcc</div></div>
+				<div class="header"><div class="logo">Protacc</div></div>
 				<div class="content">
 					<div class="greeting">Hi %s,</div>
 					<div class="message">
-						We received a request to reset your ProtAcc account password.
+						We received a request to reset your Protacc account password.
 						Click the button below to choose a new password. This link expires in 1 hour.
 					</div>
 					<p style="text-align: center; margin: 32px 0;">
@@ -740,7 +740,7 @@ func (s *MailService) SendPasswordResetEmail(toEmail, firstName, resetLink strin
 					<p class="note" style="word-break: break-all;">Or copy this link: %s</p>
 				</div>
 				<div class="footer">
-					<strong>The ProtAcc Team</strong><br>
+					<strong>The Protacc Team</strong><br>
 					<a href="mailto:info@protacc.in" style="color: #4f46e5;">info@protacc.in</a>
 				</div>
 			</div>
@@ -790,7 +790,7 @@ func (s *MailService) htmlToPlainText(html string) string {
 	text = strings.TrimSpace(text)
 
 	// Add some structure for readability
-	text = strings.ReplaceAll(text, "ProtAcc", "\n=== ProtAcc ===")
+	text = strings.ReplaceAll(text, "Protacc", "\n=== Protacc ===")
 	text = strings.ReplaceAll(text, "Your Verification Code", "\n--- Your Verification Code ---")
 	text = strings.ReplaceAll(text, "Welcome aboard", "\n=== Welcome aboard")
 
@@ -925,7 +925,7 @@ func (s *MailService) orderEmailShell(title, firstName, heading, intro string, o
 	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
 		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
 			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
-				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">Protacc</div>
 				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">%s</div>
 			</div>
 			<div style="padding:32px 30px;">
@@ -936,7 +936,7 @@ func (s *MailService) orderEmailShell(title, firstName, heading, intro string, o
 				<p style="font-size:14px;line-height:1.6;color:#6b7280;margin:20px 0 0;">If you have any questions about this order, just reply to this email and our Chartered Accountants will help you out.</p>
 			</div>
 			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
-				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — your Chartered Accountants for GST, ITR &amp; company compliance.</p>
+				<p style="font-size:13px;color:#9ca3af;margin:0;">Protacc — your Chartered Accountants for GST, ITR &amp; company compliance.</p>
 			</div>
 		</div>
 	</div>
@@ -955,7 +955,7 @@ func (s *MailService) SendOrderPlacedEmail(order *models.Order) error {
 	return s.sendEmail(order.User.Email, subject, html)
 }
 
-// SendOrderPlacedAdminEmail notifies the ProtAcc team (FROM_EMAIL) that a new
+// SendOrderPlacedAdminEmail notifies the Protacc team (FROM_EMAIL) that a new
 // order was booked. Sender and recipient are both FROM_EMAIL by design.
 func (s *MailService) SendOrderPlacedAdminEmail(order *models.Order) error {
 	if order == nil {
@@ -994,7 +994,7 @@ func (s *MailService) SendOrderPlacedAdminEmail(order *models.Order) error {
 	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
 		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
 			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
-				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">Protacc</div>
 				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">New order booked</div>
 			</div>
 			<div style="padding:32px 30px;">
@@ -1003,7 +1003,7 @@ func (s *MailService) SendOrderPlacedAdminEmail(order *models.Order) error {
 				%s
 			</div>
 			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
-				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — internal order notification.</p>
+				<p style="font-size:13px;color:#9ca3af;margin:0;">Protacc — internal order notification.</p>
 			</div>
 		</div>
 	</div>
@@ -1020,7 +1020,7 @@ func (s *MailService) SendOrderCompletedEmail(order *models.Order) error {
 		return fmt.Errorf("order completed email: missing recipient")
 	}
 	subject := fmt.Sprintf("Your order is complete: %s", order.OrderNumber)
-	intro := "Great news — your order is now complete! Thank you for trusting ProtAcc. Here's a summary of the completed order:"
+	intro := "Great news — your order is now complete! Thank you for trusting Protacc. Here's a summary of the completed order:"
 	html := s.orderEmailShell("Order complete", order.User.FirstName, "Your order is complete ✅", intro, order)
 	return s.sendEmail(order.User.Email, subject, html)
 }
@@ -1049,7 +1049,7 @@ func (s *MailService) sendAdminNotification(subject, heading, intro, rowsHTML st
 	<div style="max-width:600px;margin:0 auto;padding:24px 12px;">
 		<div style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
 			<div style="background:linear-gradient(135deg,#4f46e5 0%%,#7c3aed 100%%);padding:32px 30px;text-align:center;">
-				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">ProtAcc</div>
+				<div style="font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px;">Protacc</div>
 				<div style="color:rgba(255,255,255,0.9);font-size:15px;font-weight:500;margin-top:4px;">%s</div>
 			</div>
 			<div style="padding:32px 30px;">
@@ -1059,7 +1059,7 @@ func (s *MailService) sendAdminNotification(subject, heading, intro, rowsHTML st
 				</div>
 			</div>
 			<div style="background:#f8fafc;padding:20px 30px;text-align:center;border-top:1px solid #eef2f7;">
-				<p style="font-size:13px;color:#9ca3af;margin:0;">ProtAcc — internal notification.</p>
+				<p style="font-size:13px;color:#9ca3af;margin:0;">Protacc — internal notification.</p>
 			</div>
 		</div>
 	</div>
