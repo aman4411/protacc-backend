@@ -6,16 +6,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aman4411/protacc-backend/cache"
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/repository"
 )
 
+// Cache prefix + TTL for the public coupon banners. Kept short because coupons
+// are time-sensitive. Validate() and admin List() are never cached.
+const (
+	couponCachePrefix = "coupons:"
+	couponCacheTTL    = 5 * time.Minute
+)
+
 type CouponService struct {
-	repo *repository.CouponRepository
+	repo  *repository.CouponRepository
+	cache *cache.Cache
 }
 
-func NewCouponService(repo *repository.CouponRepository) *CouponService {
-	return &CouponService{repo: repo}
+func NewCouponService(repo *repository.CouponRepository, c *cache.Cache) *CouponService {
+	return &CouponService{repo: repo, cache: c}
+}
+
+func (s *CouponService) invalidate() {
+	if s.cache != nil {
+		s.cache.InvalidatePrefix(couponCachePrefix)
+	}
 }
 
 func normalizeCode(code string) string {
@@ -96,30 +111,46 @@ func (s *CouponService) List(ctx context.Context) ([]models.Coupon, error) {
 
 // ListVisible returns coupons flagged to show publicly on the cart.
 func (s *CouponService) ListVisible(ctx context.Context) ([]models.Coupon, error) {
-	return s.repo.ListVisible(ctx)
+	return cache.Load(s.cache, couponCachePrefix+"visible", couponCacheTTL, func() ([]models.Coupon, error) {
+		return s.repo.ListVisible(ctx)
+	})
 }
 
 // ListForHomepage returns coupons flagged for the homepage campaign banner.
 func (s *CouponService) ListForHomepage(ctx context.Context) ([]models.Coupon, error) {
-	return s.repo.ListForHomepage(ctx)
+	return cache.Load(s.cache, couponCachePrefix+"homepage", couponCacheTTL, func() ([]models.Coupon, error) {
+		return s.repo.ListForHomepage(ctx)
+	})
 }
 
 func (s *CouponService) Create(ctx context.Context, c *models.Coupon) (*models.Coupon, error) {
 	if err := s.normalizeAndValidate(c); err != nil {
 		return nil, err
 	}
-	return s.repo.Create(ctx, c)
+	res, err := s.repo.Create(ctx, c)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *CouponService) Update(ctx context.Context, c *models.Coupon) (*models.Coupon, error) {
 	if err := s.normalizeAndValidate(c); err != nil {
 		return nil, err
 	}
-	return s.repo.Update(ctx, c)
+	res, err := s.repo.Update(ctx, c)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *CouponService) Delete(ctx context.Context, id int) error {
-	return s.repo.Delete(ctx, id)
+	err := s.repo.Delete(ctx, id)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }
 
 func (s *CouponService) normalizeAndValidate(c *models.Coupon) error {

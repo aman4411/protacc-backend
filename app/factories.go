@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/aman4411/protacc-backend/cache"
 	"github.com/aman4411/protacc-backend/db"
 	"github.com/aman4411/protacc-backend/handler"
 	"github.com/aman4411/protacc-backend/repository"
@@ -29,6 +30,11 @@ func NewFactories() (*Factories, error) {
 	// Initialize database connection
 	db.InitDB()
 
+	// Shared in-process cache for public, read-heavy endpoints. On the single
+	// Render instance this serves repeated catalog reads from memory, so the DB
+	// sees roughly one query per key per TTL window regardless of traffic.
+	appCache := cache.New()
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db.Pool)
 	serviceRepo := repository.NewServiceRepository(db.Pool)
@@ -47,19 +53,19 @@ func NewFactories() (*Factories, error) {
 	// Initialize services
 	mailService := service.NewMailService()
 	userService := service.NewUserService(userRepo, mailService)
-	serviceService := service.NewServiceService(serviceRepo)
+	serviceService := service.NewServiceService(serviceRepo, appCache)
 	cartService := service.NewCartService(cartRepo)
-	couponService := service.NewCouponService(couponRepo)
-	deadlineService := service.NewDeadlineService(deadlineRepo)
-	postService := service.NewPostService(postRepo)
+	couponService := service.NewCouponService(couponRepo, appCache)
+	deadlineService := service.NewDeadlineService(deadlineRepo, appCache)
+	postService := service.NewPostService(postRepo, appCache)
 	orderService := service.NewOrderService(orderRepo, serviceRepo, cartRepo, couponService, mailService)
 	orderDocumentService := service.NewOrderDocumentService(orderDocumentRepo, orderRepo)
 	paymentService := service.NewPaymentService(orderRepo, mailService)
-	settingsService := service.NewSettingsService(settingsRepo)
+	settingsService := service.NewSettingsService(settingsRepo, appCache)
 	analyticsService := service.NewAnalyticsService(analyticsRepo)
 	leadService := service.NewLeadService(leadRepo, mailService)
 	contactService := service.NewContactService(contactRepo, mailService)
-	reviewService := service.NewReviewService(reviewRepo)
+	reviewService := service.NewReviewService(reviewRepo, appCache)
 
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService, orderService)

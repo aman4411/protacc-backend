@@ -20,6 +20,11 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	// API routes group
 	api := app.Group("/api/v1")
 
+	// Cache-Control stamps: publicCache marks anonymous, cacheable GETs so
+	// browsers/CDN can serve them; noStore keeps authenticated responses private.
+	publicCache := middleware.PublicCache()
+	noStore := middleware.NoStore()
+
 	// Public routes
 	auth := api.Group("/auth")
 	auth.Post("/signup", f.UserHandler.Signup)
@@ -30,53 +35,53 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	auth.Get("/reset-password/validate", f.UserHandler.ValidateResetToken)
 
 	// Protected routes
-	user := api.Group("/user", middleware.Protected())
+	user := api.Group("/user", middleware.Protected(), noStore)
 	user.Get("/profile", f.UserHandler.GetProfile)
 	user.Put("/profile", f.UserHandler.UpdateProfile)
 	user.Post("/change-password-request", f.UserHandler.RequestPasswordReset)
 
-	// Service routes
+	// Service routes (public, cacheable)
 	services := api.Group("/services")
-	services.Get("/", f.ServiceHandler.GetServices)
-	services.Get("/categories", f.ServiceHandler.GetServiceCategories)
-	services.Get("/search", f.ServiceHandler.SearchServices)
-	services.Get("/slug/:slug", f.ServiceHandler.GetServiceBySlug)
-	services.Get("/:id/reviews", f.ReviewHandler.GetServiceReviews)
-	services.Get("/:id", f.ServiceHandler.GetServiceByID)
+	services.Get("/", publicCache, f.ServiceHandler.GetServices)
+	services.Get("/categories", publicCache, f.ServiceHandler.GetServiceCategories)
+	services.Get("/search", publicCache, f.ServiceHandler.SearchServices)
+	services.Get("/slug/:slug", publicCache, f.ServiceHandler.GetServiceBySlug)
+	services.Get("/:id/reviews", publicCache, f.ReviewHandler.GetServiceReviews)
+	services.Get("/:id", publicCache, f.ServiceHandler.GetServiceByID)
 
 	// Public reviews
-	api.Get("/reviews/top", f.ReviewHandler.GetTopReviews)
+	api.Get("/reviews/top", publicCache, f.ReviewHandler.GetTopReviews)
 
 	// Public: coupons flagged to show on the cart
-	api.Get("/coupons/available", f.CouponHandler.ListAvailable)
+	api.Get("/coupons/available", publicCache, f.CouponHandler.ListAvailable)
 	// Public: coupons flagged for the homepage campaign banner
-	api.Get("/coupons/promotions", f.CouponHandler.ListHomepage)
+	api.Get("/coupons/promotions", publicCache, f.CouponHandler.ListHomepage)
 	// Public: upcoming tax/compliance deadlines for the homepage
-	api.Get("/deadlines/upcoming", f.DeadlineHandler.ListUpcoming)
+	api.Get("/deadlines/upcoming", publicCache, f.DeadlineHandler.ListUpcoming)
 	// Public: blog posts
-	api.Get("/posts", f.PostHandler.ListPublished)
-	api.Get("/posts/categories", f.PostHandler.ListCategories)
-	api.Get("/posts/:slug/related", f.PostHandler.GetRelated)
-	api.Get("/posts/:slug", f.PostHandler.GetBySlug)
+	api.Get("/posts", publicCache, f.PostHandler.ListPublished)
+	api.Get("/posts/categories", publicCache, f.PostHandler.ListCategories)
+	api.Get("/posts/:slug/related", publicCache, f.PostHandler.GetRelated)
+	api.Get("/posts/:slug", publicCache, f.PostHandler.GetBySlug)
 
 	// Protected review actions
-	reviews := api.Group("/reviews", middleware.Protected())
+	reviews := api.Group("/reviews", middleware.Protected(), noStore)
 	reviews.Post("/", f.ReviewHandler.SubmitReview)
 	reviews.Get("/eligibility", f.ReviewHandler.GetEligibility)
 
 	// Protected service routes
-	protectedServices := api.Group("/services", middleware.Protected())
+	protectedServices := api.Group("/services", middleware.Protected(), noStore)
 	protectedServices.Post("/categories", f.ServiceHandler.CreateServiceCategory)
 	protectedServices.Post("/", f.ServiceHandler.CreateService)
 
 	// Cart routes
-	cart := api.Group("/cart", middleware.Protected())
+	cart := api.Group("/cart", middleware.Protected(), noStore)
 	cart.Get("/", f.CartHandler.GetCartItems)
 	cart.Post("/:serviceId", f.CartHandler.AddToCart)
 	cart.Delete("/:serviceId", f.CartHandler.RemoveFromCart)
 
 	// Order routes
-	orders := api.Group("/orders", middleware.Protected())
+	orders := api.Group("/orders", middleware.Protected(), noStore)
 	orders.Get("/", f.OrderHandler.GetOrders)
 	orders.Get("/number/:orderNumber", f.OrderHandler.GetOrderByNumber) // Get order by number
 	orders.Post("/", f.OrderHandler.CreateOrderFromCart)                // New route for cart-based orders
@@ -87,7 +92,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	orders.Post("/:orderId/documents", f.OrderHandler.AddUserOrderDocument)
 
 	// Payment routes
-	payments := api.Group("/payments", middleware.Protected())
+	payments := api.Group("/payments", middleware.Protected(), noStore)
 	payments.Post("/orders/:orderId/create", f.PaymentHandler.CreatePaymentOrder)
 	payments.Post("/verify", f.PaymentHandler.VerifyPayment)
 	payments.Get("/orders/:orderId/status", f.PaymentHandler.GetPaymentStatus)
@@ -96,7 +101,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	api.Post("/payments/webhook", f.PaymentHandler.HandleWebhook)
 
 	// Admin routes
-	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"))
+	admin := api.Group("/admin", middleware.Protected(), middleware.RequireRole("admin"), noStore)
 	admin.Get("/dashboard/stats", f.UserHandler.GetDashboardStats)
 	// User management
 	admin.Get("/users", f.UserHandler.GetUsers)
@@ -184,7 +189,7 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/settings/reset-defaults", f.SettingsHandler.ResetToDefaults)
 
 	// Public settings endpoint (for frontend)
-	api.Get("/settings/public", f.SettingsHandler.GetPublicSettings)
+	api.Get("/settings/public", publicCache, f.SettingsHandler.GetPublicSettings)
 
 	// Public lead creation
 	api.Post("/leads", f.LeadHandler.CreateLead)

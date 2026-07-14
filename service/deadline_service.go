@@ -4,17 +4,33 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/aman4411/protacc-backend/cache"
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/repository"
 )
 
+// Cache prefix + TTL for the public upcoming-deadlines widget. Admin List() is
+// never cached.
+const (
+	deadlineCachePrefix = "deadlines:"
+	deadlineCacheTTL    = 60 * time.Minute
+)
+
 type DeadlineService struct {
-	repo *repository.DeadlineRepository
+	repo  *repository.DeadlineRepository
+	cache *cache.Cache
 }
 
-func NewDeadlineService(repo *repository.DeadlineRepository) *DeadlineService {
-	return &DeadlineService{repo: repo}
+func NewDeadlineService(repo *repository.DeadlineRepository, c *cache.Cache) *DeadlineService {
+	return &DeadlineService{repo: repo, cache: c}
+}
+
+func (s *DeadlineService) invalidate() {
+	if s.cache != nil {
+		s.cache.InvalidatePrefix(deadlineCachePrefix)
+	}
 }
 
 func (s *DeadlineService) List(ctx context.Context) ([]models.Deadline, error) {
@@ -25,7 +41,10 @@ func (s *DeadlineService) ListUpcoming(ctx context.Context, limit int) ([]models
 	if limit < 1 || limit > 50 {
 		limit = 8
 	}
-	return s.repo.ListUpcoming(ctx, limit)
+	key := fmt.Sprintf("%supcoming:%d", deadlineCachePrefix, limit)
+	return cache.Load(s.cache, key, deadlineCacheTTL, func() ([]models.Deadline, error) {
+		return s.repo.ListUpcoming(ctx, limit)
+	})
 }
 
 func (s *DeadlineService) validate(d *models.Deadline) error {
@@ -43,16 +62,28 @@ func (s *DeadlineService) Create(ctx context.Context, d *models.Deadline) (*mode
 	if err := s.validate(d); err != nil {
 		return nil, err
 	}
-	return s.repo.Create(ctx, d)
+	res, err := s.repo.Create(ctx, d)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *DeadlineService) Update(ctx context.Context, d *models.Deadline) (*models.Deadline, error) {
 	if err := s.validate(d); err != nil {
 		return nil, err
 	}
-	return s.repo.Update(ctx, d)
+	res, err := s.repo.Update(ctx, d)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *DeadlineService) Delete(ctx context.Context, id int) error {
-	return s.repo.Delete(ctx, id)
+	err := s.repo.Delete(ctx, id)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }

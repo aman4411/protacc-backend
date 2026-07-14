@@ -6,17 +6,39 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aman4411/protacc-backend/cache"
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/repository"
 	"github.com/gosimple/slug"
 )
 
+// Cache prefix + TTLs for public (published) post reads. Any post write busts
+// the whole "posts:" family. Admin reads (List/GetByID) are never cached.
+const (
+	postCachePrefix = "posts:"
+	postCacheTTL    = 60 * time.Minute
+	postCatCacheTTL = 60 * time.Minute
+)
+
 type PostService struct {
-	repo *repository.PostRepository
+	repo  *repository.PostRepository
+	cache *cache.Cache
 }
 
-func NewPostService(repo *repository.PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewPostService(repo *repository.PostRepository, c *cache.Cache) *PostService {
+	return &PostService{repo: repo, cache: c}
+}
+
+func (s *PostService) invalidate() {
+	if s.cache != nil {
+		s.cache.InvalidatePrefix(postCachePrefix)
+	}
+}
+
+// listPublishedResult bundles the multi-return of ListPublished for caching.
+type listPublishedResult struct {
+	Posts []models.Post
+	Total int
 }
 
 func (s *PostService) ListPublished(ctx context.Context, page, limit int, category string) ([]models.Post, int, error) {
@@ -26,15 +48,28 @@ func (s *PostService) ListPublished(ctx context.Context, page, limit int, catego
 	if limit < 1 || limit > 50 {
 		limit = 9
 	}
-	return s.repo.ListPublished(ctx, page, limit, strings.TrimSpace(category))
+	category = strings.TrimSpace(category)
+	key := fmt.Sprintf("%slist:%d:%d:%s", postCachePrefix, page, limit, category)
+	res, err := cache.Load(s.cache, key, postCacheTTL, func() (listPublishedResult, error) {
+		posts, total, err := s.repo.ListPublished(ctx, page, limit, category)
+		return listPublishedResult{Posts: posts, Total: total}, err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return res.Posts, res.Total, nil
 }
 
 func (s *PostService) ListCategories(ctx context.Context) ([]string, error) {
-	return s.repo.ListCategories(ctx)
+	return cache.Load(s.cache, postCachePrefix+"categories", postCatCacheTTL, func() ([]string, error) {
+		return s.repo.ListCategories(ctx)
+	})
 }
 
 func (s *PostService) GetPublishedBySlug(ctx context.Context, slugStr string) (*models.Post, error) {
-	return s.repo.GetPublishedBySlug(ctx, slugStr)
+	return cache.Load(s.cache, postCachePrefix+"slug:"+slugStr, postCacheTTL, func() (*models.Post, error) {
+		return s.repo.GetPublishedBySlug(ctx, slugStr)
+	})
 }
 
 func (s *PostService) List(ctx context.Context) ([]models.Post, error) {
@@ -78,7 +113,10 @@ func (s *PostService) ListRelated(ctx context.Context, excludeID int, tags []str
 	if limit < 1 || limit > 12 {
 		limit = 3
 	}
-	return s.repo.ListRelated(ctx, excludeID, tags, limit)
+	key := fmt.Sprintf("%srelated:%d:%d", postCachePrefix, excludeID, limit)
+	return cache.Load(s.cache, key, postCacheTTL, func() ([]models.Post, error) {
+		return s.repo.ListRelated(ctx, excludeID, tags, limit)
+	})
 }
 
 func (s *PostService) Create(ctx context.Context, p *models.Post) (*models.Post, error) {
@@ -89,7 +127,11 @@ func (s *PostService) Create(ctx context.Context, p *models.Post) (*models.Post,
 		now := time.Now()
 		p.PublishedAt = &now
 	}
-	return s.repo.Create(ctx, p)
+	res, err := s.repo.Create(ctx, p)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *PostService) Update(ctx context.Context, p *models.Post) (*models.Post, error) {
@@ -114,9 +156,17 @@ func (s *PostService) Update(ctx context.Context, p *models.Post) (*models.Post,
 	} else {
 		p.PublishedAt = existing.PublishedAt
 	}
-	return s.repo.Update(ctx, p)
+	res, err := s.repo.Update(ctx, p)
+	if err == nil {
+		s.invalidate()
+	}
+	return res, err
 }
 
 func (s *PostService) Delete(ctx context.Context, id int) error {
-	return s.repo.Delete(ctx, id)
+	err := s.repo.Delete(ctx, id)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }

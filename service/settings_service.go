@@ -3,18 +3,35 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/aman4411/protacc-backend/cache"
 	"github.com/aman4411/protacc-backend/models"
 	"github.com/aman4411/protacc-backend/repository"
 )
 
+// Cache prefix + TTL for the public settings endpoint consumed by the frontend.
+// Any settings write busts it. Admin settings reads stay uncached.
+const (
+	settingsCachePrefix = "settings:"
+	settingsCacheTTL    = 5 * time.Minute
+)
+
 type SettingsService struct {
-	repo *repository.SettingsRepository
+	repo  *repository.SettingsRepository
+	cache *cache.Cache
 }
 
-func NewSettingsService(repo *repository.SettingsRepository) *SettingsService {
+func NewSettingsService(repo *repository.SettingsRepository, c *cache.Cache) *SettingsService {
 	return &SettingsService{
-		repo: repo,
+		repo:  repo,
+		cache: c,
+	}
+}
+
+func (s *SettingsService) invalidate() {
+	if s.cache != nil {
+		s.cache.InvalidatePrefix(settingsCachePrefix)
 	}
 }
 
@@ -25,7 +42,9 @@ func (s *SettingsService) GetAllSettings(ctx context.Context) ([]models.SystemSe
 
 // GetPublicSettings retrieves only public settings
 func (s *SettingsService) GetPublicSettings(ctx context.Context) ([]models.SystemSetting, error) {
-	return s.repo.GetPublicSettings(ctx)
+	return cache.Load(s.cache, settingsCachePrefix+"public", settingsCacheTTL, func() ([]models.SystemSetting, error) {
+		return s.repo.GetPublicSettings(ctx)
+	})
 }
 
 // GetSettingsByCategory retrieves settings grouped by category
@@ -101,7 +120,11 @@ func (s *SettingsService) UpdateSetting(ctx context.Context, category, key, valu
 		return fmt.Errorf("setting not found: %s.%s", category, key)
 	}
 
-	return s.repo.UpdateSetting(ctx, category, key, value)
+	err = s.repo.UpdateSetting(ctx, category, key, value)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }
 
 // UpdateMultipleSettings updates multiple settings in a transaction
@@ -114,7 +137,11 @@ func (s *SettingsService) UpdateMultipleSettings(ctx context.Context, updates []
 		}
 	}
 
-	return s.repo.UpdateMultipleSettings(ctx, updates)
+	err := s.repo.UpdateMultipleSettings(ctx, updates)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }
 
 // CreateSetting creates a new setting
@@ -125,12 +152,20 @@ func (s *SettingsService) CreateSetting(ctx context.Context, setting *models.Sys
 		return fmt.Errorf("setting already exists: %s.%s", setting.Category, setting.SettingKey)
 	}
 
-	return s.repo.CreateSetting(ctx, setting)
+	err = s.repo.CreateSetting(ctx, setting)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }
 
 // DeleteSetting deletes a specific setting
 func (s *SettingsService) DeleteSetting(ctx context.Context, category, key string) error {
-	return s.repo.DeleteSetting(ctx, category, key)
+	err := s.repo.DeleteSetting(ctx, category, key)
+	if err == nil {
+		s.invalidate()
+	}
+	return err
 }
 
 // GetSettingValue is a helper method to get a setting value with a default
