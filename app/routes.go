@@ -188,6 +188,10 @@ func SetupRoutes(app *fiber.App, f *Factories) {
 	admin.Post("/settings/test-email", f.SettingsHandler.TestEmailSettings)
 	admin.Post("/settings/reset-defaults", f.SettingsHandler.ResetToDefaults)
 
+	// Cache management (admin)
+	admin.Get("/cache", f.CacheHandler.Stats)
+	admin.Post("/cache/purge", f.CacheHandler.Purge)
+
 	// Public settings endpoint (for frontend)
 	api.Get("/settings/public", publicCache, f.SettingsHandler.GetPublicSettings)
 

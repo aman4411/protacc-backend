@@ -23,6 +23,7 @@ type Factories struct {
 	CouponHandler    *handler.CouponHandler
 	DeadlineHandler  *handler.DeadlineHandler
 	PostHandler      *handler.PostHandler
+	CacheHandler     *handler.CacheHandler
 }
 
 // NewFactories initializes all dependencies and returns them
@@ -81,6 +82,7 @@ func NewFactories() (*Factories, error) {
 	couponHandler := handler.NewCouponHandler(couponService)
 	deadlineHandler := handler.NewDeadlineHandler(deadlineService)
 	postHandler := handler.NewPostHandler(postService)
+	cacheHandler := handler.NewCacheHandler(appCache)
 
 	return &Factories{
 		UserHandler:      userHandler,
@@ -96,5 +98,6 @@ func NewFactories() (*Factories, error) {
 		CouponHandler:    couponHandler,
 		DeadlineHandler:  deadlineHandler,
 		PostHandler:      postHandler,
+		CacheHandler:     cacheHandler,
 	}, nil
 }

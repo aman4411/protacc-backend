@@ -113,16 +113,51 @@ func (c *Cache) Invalidate(key string) {
 	c.mu.Unlock()
 }
 
-// InvalidatePrefix removes every key that begins with prefix. Used to bust a
-// whole family of cached reads (e.g. all "services:*") after an admin write.
-func (c *Cache) InvalidatePrefix(prefix string) {
+// InvalidatePrefix removes every key that begins with prefix and returns the
+// number of entries removed. Used to bust a whole family of cached reads
+// (e.g. all "services:*") after an admin write.
+func (c *Cache) InvalidatePrefix(prefix string) int {
 	c.mu.Lock()
+	n := 0
 	for k := range c.store {
 		if strings.HasPrefix(k, prefix) {
 			delete(c.store, k)
+			n++
 		}
 	}
 	c.mu.Unlock()
+	return n
+}
+
+// Clear removes every entry and returns how many were removed.
+func (c *Cache) Clear() int {
+	c.mu.Lock()
+	n := len(c.store)
+	c.store = make(map[string]entry)
+	c.mu.Unlock()
+	return n
+}
+
+// Stats returns the count of live (non-expired) entries, both in total and
+// broken down by family — the key text before the first ':' (e.g. "services").
+func (c *Cache) Stats() (int, map[string]int) {
+	now := time.Now()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	total := 0
+	byFamily := make(map[string]int)
+	for k, e := range c.store {
+		if now.After(e.expiresAt) {
+			continue
+		}
+		total++
+		family := k
+		if i := strings.IndexByte(k, ':'); i >= 0 {
+			family = k[:i]
+		}
+		byFamily[family]++
+	}
+	return total, byFamily
 }
 
 // Load returns the cached value for key, or computes it via loader (guarded by
